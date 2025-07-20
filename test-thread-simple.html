@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thread Support Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Thread Support Test</h1>
+    
+    <div class="test-section info">
+        <h3>Test Information</h3>
+        <p>This page tests the thread support API implementation.</p>
+        <p>Thread ID: <strong>thread_DxJ3b4HsVDx9GcCEQWCgLQUU</strong></p>
+    </div>
+
+    <div class="test-section">
+        <h3>1. Test API Endpoint</h3>
+        <button onclick="testAPI()">Test Thread Messages API</button>
+        <div id="api-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>2. Test Message Conversion</h3>
+        <button onclick="testMessageConversion()">Test Message Conversion</button>
+        <div id="conversion-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>3. Test Complete Flow</h3>
+        <button onclick="testCompleteFlow()">Test Complete Flow</button>
+        <div id="flow-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>4. Open in Main App</h3>
+        <p>Click the button below to open the thread in the main application:</p>
+        <button onclick="openInApp()">Open Thread in Main App</button>
+    </div>
+
+    <script>
+        const THREAD_ID = 'thread_DxJ3b4HsVDx9GcCEQWCgLQUU';
+        const API_BASE = 'http://localhost:3000';
+
+        function logResult(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `
+                <div class="${isSuccess ? 'success' : 'error'}">
+                    <strong>${isSuccess ? '✅ Success' : '❌ Error'}:</strong> ${message}
+                </div>
+            `;
+        }
+
+        async function testAPI() {
+            try {
+                const response = await fetch(`${API_BASE}/api/openai/v1/threads/${THREAD_ID}/messages`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    logResult('api-result', `API call successful! Found ${data.data.length} messages.`);
+                    console.log('API Response:', data);
+                } else {
+                    logResult('api-result', `API error: ${data.error?.message || response.statusText}`, false);
+                }
+            } catch (error) {
+                logResult('api-result', `Network error: ${error.message}`, false);
+            }
+        }
+
+        function testMessageConversion() {
+            // Simulate the message conversion logic
+            const mockThreadMessages = {
+                data: [
+                    {
+                        id: 'msg_1',
+                        role: 'user',
+                        content: [{ type: 'text', text: { value: 'Hello, how are you?' } }],
+                        created_at: 1703123456
+                    },
+                    {
+                        id: 'msg_2',
+                        role: 'assistant',
+                        content: [{ type: 'text', text: { value: 'I am doing well, thank you!' } }],
+                        created_at: 1703123457
+                    }
+                ]
+            };
+
+            const chatMessages = mockThreadMessages.data
+                .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                .map(msg => ({
+                    id: msg.id,
+                    role: msg.role,
+                    content: msg.content[0]?.text?.value || '',
+                    date: new Date(msg.created_at * 1000).toLocaleString()
+                }));
+
+            logResult('conversion-result', `Message conversion successful! Converted ${chatMessages.length} messages.`);
+            console.log('Converted Messages:', chatMessages);
+        }
+
+        async function testCompleteFlow() {
+            try {
+                // Step 1: Test API
+                const response = await fetch(`${API_BASE}/api/openai/v1/threads/${THREAD_ID}/messages`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(`API error: ${data.error?.message || response.statusText}`);
+                }
+
+                // Step 2: Test message conversion
+                const chatMessages = data.data
+                    .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                    .map(msg => ({
+                        id: msg.id,
+                        role: msg.role,
+                        content: msg.content[0]?.text?.value || '',
+                        date: new Date(msg.created_at * 1000).toLocaleString()
+                    }));
+
+                logResult('flow-result', `Complete flow successful! Loaded ${chatMessages.length} messages from thread.`);
+                console.log('Complete Flow Result:', chatMessages);
+            } catch (error) {
+                logResult('flow-result', `Flow error: ${error.message}`, false);
+            }
+        }
+
+        function openInApp() {
+            const url = `${API_BASE}/?thread_id=${THREAD_ID}`;
+            window.open(url, '_blank');
+        }
+
+        // Auto-run API test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testAPI, 1000);
+        });
+    </script>
+</body>
+</html> 

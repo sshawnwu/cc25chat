@@ -84,6 +84,7 @@ export interface ChatStat {
 export interface ChatSession {
   id: string;
   topic: string;
+  threadId?: string; // Add support for OpenAI thread ID
 
   memoryPrompt: string;
   messages: ChatMessage[];
@@ -327,6 +328,81 @@ export const useChatStore = createPersistStore(
         }));
       },
 
+      async newSessionWithThread(threadId: string, mask?: Mask) {
+        const session = createEmptySession();
+        session.threadId = threadId;
+
+        if (mask) {
+          const config = useAppConfig.getState();
+          const globalModelConfig = config.modelConfig;
+
+          session.mask = {
+            ...mask,
+            modelConfig: {
+              ...globalModelConfig,
+              ...mask.modelConfig,
+            },
+          };
+          session.topic = mask.name;
+        }
+
+        try {
+          // Load thread messages
+          const threadMessages = await get().loadThreadMessages(threadId);
+          
+          // Convert thread messages to chat messages
+          const chatMessages: ChatMessage[] = threadMessages
+            .filter((msg: any) => msg.role === "user" || msg.role === "assistant")
+            .map((msg: any) => {
+              // Handle different content formats from OpenAI API
+              let content = "";
+              if (Array.isArray(msg.content)) {
+                // If content is an array, extract text from the first text item
+                const textItem = msg.content.find((item: any) => item.type === "text");
+                if (textItem) {
+                  // Handle OpenAI thread message format: text.value
+                  content = textItem.text?.value || textItem.text || "";
+                }
+              } else if (typeof msg.content === "string") {
+                // If content is a string, use it directly
+                content = msg.content;
+              } else if (msg.content && typeof msg.content === "object" && msg.content.value) {
+                // Handle OpenAI thread message format: {value: "...", annotations: [...]}
+                content = msg.content.value || "";
+              } else {
+                // Fallback for other formats
+                content = "";
+              }
+              
+              // Ensure content is never null or undefined
+              if (content === null || content === undefined) {
+                content = "";
+              }
+              
+              return createMessage({
+                role: msg.role,
+                content,
+                date: new Date(msg.created_at * 1000).toLocaleString(),
+              });
+            });
+
+          session.messages = chatMessages;
+          if (!mask) {
+            session.topic = `Thread ${threadId}`;
+          }
+        } catch (error) {
+          console.error("[Thread Session] Failed to load thread messages:", error);
+          if (!mask) {
+            session.topic = `Thread ${threadId} (Failed to load)`;
+          }
+        }
+
+        set((state) => ({
+          currentSessionIndex: 0,
+          sessions: [session].concat(state.sessions),
+        }));
+      },
+
       nextSession(delta: number) {
         const n = get().sessions.length;
         const limit = (x: number) => (x + n) % n;
@@ -536,6 +612,27 @@ export const useChatStore = createPersistStore(
             content: Locale.Store.Prompt.History(session.memoryPrompt),
             date: "",
           } as ChatMessage;
+        }
+      },
+
+      async loadThreadMessages(threadId: string) {
+        try {
+          const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch thread messages: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          return data.data || [];
+        } catch (error) {
+          console.error("[Thread Messages] Failed to load:", error);
+          throw error;
         }
       },
 

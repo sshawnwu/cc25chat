@@ -234,11 +234,21 @@ export function isMacOS(): boolean {
 }
 
 export function getMessageTextContent(message: RequestMessage) {
+  // Handle null/undefined message or content
+  if (!message || !message.content) {
+    return "";
+  }
+  
   if (typeof message.content === "string") {
     return message.content;
   }
+  
+  if (!Array.isArray(message.content)) {
+    return "";
+  }
+  
   for (const c of message.content) {
-    if (c.type === "text") {
+    if (c && c.type === "text") {
       return c.text ?? "";
     }
   }
@@ -271,9 +281,14 @@ export function getMessageImages(message: RequestMessage): string[] {
   if (typeof message.content === "string") {
     return [];
   }
+  
+  if (!Array.isArray(message.content)) {
+    return [];
+  }
+  
   const urls: string[] = [];
   for (const c of message.content) {
-    if (c.type === "image_url") {
+    if (c && c.type === "image_url") {
       urls.push(c.image_url?.url ?? "");
     }
   }

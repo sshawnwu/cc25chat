@@ -995,6 +995,8 @@ function _Chat() {
   const fontSize = config.fontSize;
   const fontFamily = config.fontFamily;
 
+
+
   const [showExport, setShowExport] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -1485,6 +1487,20 @@ function _Chat() {
         }
       } catch {
         console.error("[Command] failed to get settings from url: ", text);
+      }
+    },
+    thread_id: async (threadId: string) => {
+      console.log("[Command] got thread_id from url: ", threadId);
+      console.log("[Command] thread_id type:", typeof threadId);
+      console.log("[Command] thread_id length:", threadId.length);
+      try {
+        console.log("[Command] calling chatStore.newSessionWithThread...");
+        await chatStore.newSessionWithThread(threadId);
+        console.log("[Command] newSessionWithThread completed successfully");
+        showToast(`Loaded thread: ${threadId}`);
+      } catch (error) {
+        console.error("[Thread] Failed to load thread:", error);
+        showToast(`Failed to load thread: ${threadId}`);
       }
     },
   });

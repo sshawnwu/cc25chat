@@ -90,6 +90,10 @@ export async function requestOpenai(req: NextRequest) {
 
   const fetchUrl = cloudflareAIGatewayUrl(`${baseUrl}/${path}`);
   console.log("fetchUrl", fetchUrl);
+  
+  // Check if this is a thread-related request that needs the beta header
+  const isThreadRequest = path.includes('/threads/') || path.includes('/assistants/');
+  
   const fetchOptions: RequestInit = {
     headers: {
       "Content-Type": "application/json",
@@ -97,6 +101,10 @@ export async function requestOpenai(req: NextRequest) {
       [authHeaderName]: authValue,
       ...(serverConfig.openaiOrgId && {
         "OpenAI-Organization": serverConfig.openaiOrgId,
+      }),
+      // Add beta header for Assistants API requests
+      ...(isThreadRequest && {
+        "OpenAI-Beta": "assistants=v2",
       }),
     },
     method: req.method,

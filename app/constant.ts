@@ -1,3 +1,4 @@
+/* eslint-disable unused-imports/no-unused-imports */
 export const OWNER = "ChatGPTNextWeb";
 export const REPO = "ChatGPT-Next-Web";
 export const REPO_URL = `https://github.com/${OWNER}/${REPO}`;
@@ -182,6 +183,7 @@ export const OpenaiPath = {
   UsagePath: "dashboard/billing/usage",
   SubsPath: "dashboard/billing/subscription",
   ListModelPath: "v1/models",
+  ThreadMessagesPath: "v1/threads/{thread_id}/messages",
 };
 
 export const Azure = {

@@ -6,7 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "./auth";
 import { requestOpenai } from "./common";
 
-const ALLOWED_PATH = new Set(Object.values(OpenaiPath));
+const ALLOWED_PATH = new Set([
+  ...Object.values(OpenaiPath),
+  // Add support for thread messages path with dynamic thread_id
+  "v1/threads/{thread_id}/messages"
+]);
 
 function getModels(remoteModelRes: OpenAIListModelResponse) {
   const config = getServerSideConfig();
@@ -38,7 +42,10 @@ export async function handle(
 
   const subpath = params.path.join("/");
 
-  if (!ALLOWED_PATH.has(subpath)) {
+  // Check if this is a thread messages request
+  const isThreadMessages = subpath.match(/^v1\/threads\/[^\/]+\/messages$/);
+  
+  if (!ALLOWED_PATH.has(subpath) && !isThreadMessages) {
     console.log("[OpenAI Route] forbidden path ", subpath);
     return NextResponse.json(
       {

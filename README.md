@@ -480,3 +480,36 @@ If you want to add a new translation, read this [document](./docs/translation.md
 ## LICENSE
 
 [MIT](https://opensource.org/license/mit/)
+
+## OpenAI Thread Support
+
+This application now supports loading and continuing conversations from OpenAI threads. You can pass a `thread_id` parameter in the URL to automatically load the thread messages and continue the conversation.
+
+### Usage
+
+1. **Via URL Parameter**: Add `?thread_id=your_thread_id` to the URL
+   ```
+   https://your-app.com/chat?thread_id=thread_abc123
+   ```
+
+2. **Features**:
+   - Automatically loads all messages from the specified thread
+   - Displays the conversation history in the chat interface
+   - Allows you to continue the conversation seamlessly
+   - Supports all existing chat features (streaming, tools, etc.)
+
+3. **API Endpoint**: The application uses the OpenAI Thread Messages API
+   ```
+   GET /api/openai/v1/threads/{thread_id}/messages
+   ```
+
+4. **Error Handling**: If the thread cannot be loaded, the application will show an error message and create a new session.
+
+### Example
+
+Visit: `https://your-app.com/chat?thread_id=thread_abc123def456`
+
+This will:
+- Load all messages from thread `thread_abc123def456`
+- Display them in the chat interface
+- Allow you to continue the conversation
