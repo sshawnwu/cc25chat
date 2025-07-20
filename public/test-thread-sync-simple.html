@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Thread Sync Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 8px 12px; margin: 5px; cursor: pointer; }
+        input { padding: 5px; margin: 5px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>Simple Thread Sync Test</h1>
+    
+    <div>
+        <input type="text" id="threadId" placeholder="Enter thread ID">
+        <button onclick="testThreadSync()">Test Thread Sync</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testThreadSync() {
+            const threadId = document.getElementById('threadId').value.trim();
+            if (!threadId) {
+                log('Please enter a thread ID', 'error');
+                return;
+            }
+            
+            log(`Testing thread sync for: ${threadId}`, 'info');
+            
+            try {
+                // Test 1: Load thread messages
+                log('Test 1: Loading thread messages...', 'info');
+                const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`✓ Loaded ${data.data?.length || 0} messages from thread`, 'success');
+                
+                // Test 2: Check if we can send a message
+                log('Test 2: Testing message sending...', 'info');
+                const testMessage = `Test message from sync test at ${new Date().toLocaleTimeString()}`;
+                
+                const sendResponse = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        role: 'user',
+                        content: testMessage
+                    })
+                });
+                
+                if (!sendResponse.ok) {
+                    throw new Error(`Failed to send message: HTTP ${sendResponse.status}`);
+                }
+                
+                const sendData = await sendResponse.json();
+                log(`✓ Message sent successfully: ${sendData.id}`, 'success');
+                
+                // Test 3: Verify message appears in thread
+                log('Test 3: Verifying message appears in thread...', 'info');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const verifyResponse = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (verifyResponse.ok) {
+                    const verifyData = await verifyResponse.json();
+                    const newMessageCount = verifyData.data?.length || 0;
+                    log(`✓ Thread now has ${newMessageCount} messages`, 'success');
+                    
+                    if (newMessageCount > data.data?.length) {
+                        log('✓ New message successfully added to thread!', 'success');
+                    } else {
+                        log('⚠ Message count unchanged - may need to wait longer', 'info');
+                    }
+                }
+                
+                log('🎉 Thread sync test completed successfully!', 'success');
+                log('💡 To test cross-browser sync: Open this page in two browsers with the same thread ID', 'info');
+                
+            } catch (error) {
+                log(`❌ Test failed: ${error.message}`, 'error');
+                log('💡 Make sure you have a valid thread ID and the server is running', 'info');
+            }
+        }
+        
+        // Auto-test if thread_id is in URL
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const threadId = urlParams.get('thread_id');
+            if (threadId) {
+                document.getElementById('threadId').value = threadId;
+                setTimeout(() => testThreadSync(), 1000);
+            }
+        });
+    </script>
+</body>
+</html> 

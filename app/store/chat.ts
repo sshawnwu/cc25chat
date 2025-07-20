@@ -412,6 +412,49 @@ export const useChatStore = createPersistStore(
           currentSessionIndex: 0,
           sessions: [session].concat(state.sessions),
         }));
+
+        // Start thread synchronization for this session
+        if (session.threadId) {
+          const { startThreadSync } = await import("../utils/thread-sync");
+          startThreadSync(session.threadId, (messages) => {
+            // Update session with new messages from thread
+            get().updateTargetSession(session, (session) => {
+              session.messages = messages
+                .filter(
+                  (msg: any) => msg.role === "user" || msg.role === "assistant",
+                )
+                .map((msg: any) => {
+                  let content = "";
+                  if (Array.isArray(msg.content)) {
+                    const textItem = msg.content.find(
+                      (item: any) => item.type === "text",
+                    );
+                    if (textItem) {
+                      content = textItem.text?.value || textItem.text || "";
+                    }
+                  } else if (typeof msg.content === "string") {
+                    content = msg.content;
+                  } else if (
+                    msg.content &&
+                    typeof msg.content === "object" &&
+                    msg.content.value
+                  ) {
+                    content = msg.content.value || "";
+                  }
+
+                  if (content === null || content === undefined) {
+                    content = "";
+                  }
+
+                  return createMessage({
+                    role: msg.role,
+                    content,
+                    date: new Date(msg.created_at * 1000).toLocaleString(),
+                  });
+                });
+            });
+          });
+        }
       },
 
       nextSession(delta: number) {
@@ -526,6 +569,128 @@ export const useChatStore = createPersistStore(
           model: modelConfig.model,
         });
 
+        // Check if this is a thread session
+        const isThreadSession = session.threadId && session.threadId.length > 0;
+
+        if (isThreadSession) {
+          // For thread sessions, we need to send messages to OpenAI's thread API
+          await get().handleThreadMessage(
+            session,
+            userMessage,
+            botMessage,
+            modelConfig,
+          );
+        } else {
+          // Regular chat flow for non-thread sessions
+          await get().handleRegularMessage(
+            session,
+            userMessage,
+            botMessage,
+            modelConfig,
+          );
+        }
+      },
+
+      async handleThreadMessage(
+        session: ChatSession,
+        userMessage: ChatMessage,
+        botMessage: ChatMessage,
+        modelConfig: ModelConfig,
+      ) {
+        try {
+          // For thread sessions, use regular chat API but with thread sync
+          // This ensures all browsers see the same conversation
+
+          // First, add the user message to the session
+          get().updateTargetSession(session, (session) => {
+            session.messages.push(userMessage);
+          });
+
+          // Use regular chat API for the response
+          const recentMessages = await get().getMessagesWithMemory();
+          const sendMessages = recentMessages.concat(userMessage);
+
+          const api: ClientApi = getClientApi(modelConfig.providerName);
+
+          api.llm.chat({
+            messages: sendMessages,
+            config: { ...modelConfig, stream: true },
+            onUpdate(message) {
+              botMessage.streaming = true;
+              if (message) {
+                botMessage.content = message;
+              }
+              get().updateTargetSession(session, (session) => {
+                session.messages = session.messages.concat();
+              });
+            },
+            async onFinish(message) {
+              botMessage.streaming = false;
+              if (message) {
+                botMessage.content = message;
+                botMessage.date = new Date().toLocaleString();
+                get().onNewMessage(botMessage, session);
+              }
+              ChatControllerPool.remove(session.id, botMessage.id);
+
+              // After finishing, reload messages from thread to ensure consistency
+              await get().loadThreadMessages(session.threadId!);
+            },
+            onBeforeTool(tool: ChatMessageTool) {
+              (botMessage.tools = botMessage?.tools || []).push(tool);
+              get().updateTargetSession(session, (session) => {
+                session.messages = session.messages.concat();
+              });
+            },
+            onAfterTool(tool: ChatMessageTool) {
+              botMessage?.tools?.forEach((t, i, tools) => {
+                if (tool.id == t.id) {
+                  tools[i] = { ...tool };
+                }
+              });
+              get().updateTargetSession(session, (session) => {
+                session.messages = session.messages.concat();
+              });
+            },
+            onError(error) {
+              const isAborted = error.message?.includes?.("aborted");
+              botMessage.content +=
+                "\n\n" +
+                prettyObject({
+                  error: true,
+                  message: error.message,
+                });
+              botMessage.streaming = false;
+              get().updateTargetSession(session, (session) => {
+                session.messages = session.messages.concat();
+              });
+            },
+            onController(controller) {
+              ChatControllerPool.addController(
+                session.id,
+                botMessage.id,
+                controller,
+              );
+            },
+          });
+        } catch (error) {
+          console.error("[Thread Message] Error:", error);
+          botMessage.content = `Error: ${
+            error instanceof Error ? error.message : String(error)
+          }`;
+          botMessage.streaming = false;
+          get().updateTargetSession(session, (session) => {
+            session.messages = session.messages.concat();
+          });
+        }
+      },
+
+      async handleRegularMessage(
+        session: ChatSession,
+        userMessage: ChatMessage,
+        botMessage: ChatMessage,
+        modelConfig: ModelConfig,
+      ) {
         // get recent messages
         const recentMessages = await get().getMessagesWithMemory();
         const sendMessages = recentMessages.concat(userMessage);
@@ -535,7 +700,7 @@ export const useChatStore = createPersistStore(
         get().updateTargetSession(session, (session) => {
           const savedUserMessage = {
             ...userMessage,
-            content: mContent,
+            content: userMessage.content,
           };
           session.messages = session.messages.concat([
             savedUserMessage,
