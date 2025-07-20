@@ -349,16 +349,20 @@ export const useChatStore = createPersistStore(
         try {
           // Load thread messages
           const threadMessages = await get().loadThreadMessages(threadId);
-          
+
           // Convert thread messages to chat messages
           const chatMessages: ChatMessage[] = threadMessages
-            .filter((msg: any) => msg.role === "user" || msg.role === "assistant")
+            .filter(
+              (msg: any) => msg.role === "user" || msg.role === "assistant",
+            )
             .map((msg: any) => {
               // Handle different content formats from OpenAI API
               let content = "";
               if (Array.isArray(msg.content)) {
                 // If content is an array, extract text from the first text item
-                const textItem = msg.content.find((item: any) => item.type === "text");
+                const textItem = msg.content.find(
+                  (item: any) => item.type === "text",
+                );
                 if (textItem) {
                   // Handle OpenAI thread message format: text.value
                   content = textItem.text?.value || textItem.text || "";
@@ -366,19 +370,23 @@ export const useChatStore = createPersistStore(
               } else if (typeof msg.content === "string") {
                 // If content is a string, use it directly
                 content = msg.content;
-              } else if (msg.content && typeof msg.content === "object" && msg.content.value) {
+              } else if (
+                msg.content &&
+                typeof msg.content === "object" &&
+                msg.content.value
+              ) {
                 // Handle OpenAI thread message format: {value: "...", annotations: [...]}
                 content = msg.content.value || "";
               } else {
                 // Fallback for other formats
                 content = "";
               }
-              
+
               // Ensure content is never null or undefined
               if (content === null || content === undefined) {
                 content = "";
               }
-              
+
               return createMessage({
                 role: msg.role,
                 content,
@@ -391,7 +399,10 @@ export const useChatStore = createPersistStore(
             session.topic = `Thread ${threadId}`;
           }
         } catch (error) {
-          console.error("[Thread Session] Failed to load thread messages:", error);
+          console.error(
+            "[Thread Session] Failed to load thread messages:",
+            error,
+          );
           if (!mask) {
             session.topic = `Thread ${threadId} (Failed to load)`;
           }
@@ -617,15 +628,25 @@ export const useChatStore = createPersistStore(
 
       async loadThreadMessages(threadId: string) {
         try {
-          const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
+          // Import getHeaders function to get proper authentication headers
+          const { getHeaders } = await import("../client/api");
+
+          const headers = getHeaders();
+          // Add OpenAI-Beta header for Assistants API
+          headers["OpenAI-Beta"] = "assistants=v2";
+
+          const response = await fetch(
+            `/api/openai/v1/threads/${threadId}/messages`,
+            {
+              method: "GET",
+              headers,
             },
-          });
+          );
 
           if (!response.ok) {
-            throw new Error(`Failed to fetch thread messages: ${response.statusText}`);
+            throw new Error(
+              `Failed to fetch thread messages: ${response.statusText}`,
+            );
           }
 
           const data = await response.json();
