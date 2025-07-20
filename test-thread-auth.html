@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thread Messages Auth Test</title>
+</head>
+<body>
+    <h1>Thread Messages Authentication Test</h1>
+    <p>This test verifies that thread messages API calls work with proper authentication.</p>
+    
+    <div>
+        <label for="threadId">Thread ID:</label>
+        <input type="text" id="threadId" placeholder="thread_abc123" value="thread_abc123">
+        <button onclick="testThreadMessages()">Test Thread Messages</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testThreadMessages() {
+            const threadId = document.getElementById('threadId').value;
+            const resultDiv = document.getElementById('result');
+            
+            if (!threadId) {
+                resultDiv.innerHTML = '<p style="color: red;">Please enter a thread ID</p>';
+                return;
+            }
+            
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                // Test the thread messages endpoint
+                const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <p style="color: green;">✅ Success! Authentication working.</p>
+                        <p>Response status: ${response.status}</p>
+                        <p>Messages count: ${data.data ? data.data.length : 0}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML = `
+                        <p style="color: red;">❌ Failed with status: ${response.status}</p>
+                        <p>Error: ${errorText}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p style="color: red;">❌ Network error: ${error.message}</p>
+                `;
+                console.error('Test error:', error);
+            }
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            setTimeout(testThreadMessages, 1000);
+        });
+    </script>
+</body>
+</html> 
