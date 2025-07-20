@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear App Config</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        button { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Clear ChatGPT Next Web Configuration</h1>
+    <p>This will clear all saved configuration and reset to default settings.</p>
+    
+    <button onclick="clearConfig()">Clear All Configuration</button>
+    <button onclick="clearModelConfig()">Clear Model Configuration Only</button>
+    <button onclick="checkCurrentConfig()">Check Current Configuration</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function clearConfig() {
+            try {
+                // Clear all app-related storage
+                localStorage.removeItem('chat-next-web-store');
+                localStorage.removeItem('app-config');
+                localStorage.removeItem('mask-store');
+                localStorage.removeItem('prompt-store');
+                localStorage.removeItem('chat-next-web-plugin');
+                localStorage.removeItem('access-control');
+                localStorage.removeItem('chat-update');
+                localStorage.removeItem('sync');
+                localStorage.removeItem('sd-list');
+                localStorage.removeItem('mcp-store');
+                
+                document.getElementById('result').innerHTML = '<p class="success">✅ All configuration cleared successfully!</p>';
+                console.log('All configuration cleared');
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p class="error">❌ Error clearing configuration: ' + error.message + '</p>';
+                console.error('Error clearing config:', error);
+            }
+        }
+        
+        function clearModelConfig() {
+            try {
+                // Get current config
+                const configStr = localStorage.getItem('app-config');
+                if (configStr) {
+                    const config = JSON.parse(configStr);
+                    
+                    // Reset model config to default
+                    if (config.modelConfig) {
+                        config.modelConfig.model = 'gpt-4o';
+                        config.modelConfig.providerName = 'OpenAI';
+                    }
+                    
+                    // Save updated config
+                    localStorage.setItem('app-config', JSON.stringify(config));
+                    document.getElementById('result').innerHTML = '<p class="success">✅ Model configuration reset to gpt-4o!</p>';
+                    console.log('Model config reset to gpt-4o');
+                } else {
+                    document.getElementById('result').innerHTML = '<p class="error">❌ No configuration found to clear</p>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p class="error">❌ Error resetting model config: ' + error.message + '</p>';
+                console.error('Error resetting model config:', error);
+            }
+        }
+        
+        function checkCurrentConfig() {
+            try {
+                const configStr = localStorage.getItem('app-config');
+                if (configStr) {
+                    const config = JSON.parse(configStr);
+                    const model = config.modelConfig?.model || 'Not set';
+                    const provider = config.modelConfig?.providerName || 'Not set';
+                    
+                    document.getElementById('result').innerHTML = `
+                        <p><strong>Current Configuration:</strong></p>
+                        <p>Model: ${model}</p>
+                        <p>Provider: ${provider}</p>
+                        <pre>${JSON.stringify(config, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = '<p>No configuration found in localStorage</p>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p class="error">❌ Error reading configuration: ' + error.message + '</p>';
+            }
+        }
+        
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkCurrentConfig, 500);
+        });
+    </script>
+</body>
+</html> 
