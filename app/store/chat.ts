@@ -329,6 +329,20 @@ export const useChatStore = createPersistStore(
       },
 
       async newSessionWithThread(threadId: string, mask?: Mask) {
+        // Check if a session with this threadId already exists
+        const existingSessionIndex = get().sessions.findIndex(
+          (session) => session.threadId === threadId,
+        );
+
+        if (existingSessionIndex !== -1) {
+          // If session already exists, just select it
+          console.log(
+            `[Thread Session] Session for thread ${threadId} already exists, selecting it`,
+          );
+          get().selectSession(existingSessionIndex);
+          return;
+        }
+
         const session = createEmptySession();
         session.threadId = threadId;
 
@@ -419,7 +433,8 @@ export const useChatStore = createPersistStore(
           startThreadSync(session.threadId, (messages) => {
             // Update session with new messages from thread
             get().updateTargetSession(session, (session) => {
-              session.messages = messages
+              // Convert thread messages to chat messages
+              const threadMessages = messages
                 .filter(
                   (msg: any) => msg.role === "user" || msg.role === "assistant",
                 )
@@ -452,6 +467,23 @@ export const useChatStore = createPersistStore(
                     date: new Date(msg.created_at * 1000).toLocaleString(),
                   });
                 });
+
+              // Only update if we have new messages and they're different from current
+              if (threadMessages.length > session.messages.length) {
+                // Check if the last message is different (to avoid overwriting user input)
+                const lastThreadMessage =
+                  threadMessages[threadMessages.length - 1];
+                const lastSessionMessage =
+                  session.messages[session.messages.length - 1];
+
+                if (
+                  !lastSessionMessage ||
+                  lastThreadMessage.id !== lastSessionMessage.id
+                ) {
+                  session.messages = threadMessages;
+                  console.log("[Thread Sync] Updated messages from thread");
+                }
+              }
             });
           });
         }
@@ -598,89 +630,196 @@ export const useChatStore = createPersistStore(
         modelConfig: ModelConfig,
       ) {
         try {
-          // For thread sessions, use regular chat API but with thread sync
-          // This ensures all browsers see the same conversation
+          // For thread sessions, we need to send the user message to the thread first
+          // Then use Assistants API to get the response
 
-          // First, add the user message to the session
+          // Step 1: Send user message to thread
+          const { getHeaders } = await import("../client/api");
+          const headers = getHeaders();
+          headers["OpenAI-Beta"] = "assistants=v2";
+
+          const userMessageResponse = await fetch(
+            `/api/openai/v1/threads/${session.threadId}/messages`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                role: "user",
+                content: userMessage.content,
+              }),
+            },
+          );
+
+          if (!userMessageResponse.ok) {
+            throw new Error(
+              `Failed to add user message to thread: ${userMessageResponse.statusText}`,
+            );
+          }
+
+          const userMessageData = await userMessageResponse.json();
+          console.log(
+            "[Thread] User message added to thread:",
+            userMessageData.id,
+          );
+
+          // Step 2: Add user message and bot message to local session first
           get().updateTargetSession(session, (session) => {
-            session.messages.push(userMessage);
+            // Create new messages array to trigger React re-render
+            session.messages = [...session.messages, userMessage];
+            // Add bot message immediately to show "thinking" state
+            botMessage.streaming = true;
+            botMessage.content = ""; // Start with empty content
+            session.messages = [...session.messages, botMessage];
           });
 
-          // Use regular chat API for the response
-          const recentMessages = await get().getMessagesWithMemory();
-          const sendMessages = recentMessages.concat(userMessage);
+          // Step 3: Get assistant ID from server configuration
+          const configResponse = await fetch("/api/assistant-config");
+          if (!configResponse.ok) {
+            throw new Error(
+              `Failed to get assistant configuration: ${configResponse.statusText}`,
+            );
+          }
 
-          const api: ClientApi = getClientApi(modelConfig.providerName);
+          const configData = await configResponse.json();
+          const assistantId = configData.assistantId;
 
-          api.llm.chat({
-            messages: sendMessages,
-            config: { ...modelConfig, stream: true },
-            onUpdate(message) {
-              botMessage.streaming = true;
-              if (message) {
-                botMessage.content = message;
+          if (!assistantId) {
+            throw new Error(
+              "ASSISTANT_ID environment variable is not set. Please configure it to use thread functionality.",
+            );
+          }
+
+          console.log("[Thread] Using assistant ID:", assistantId);
+
+          const runResponse = await fetch(
+            `/api/openai/v1/threads/${session.threadId}/runs`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                assistant_id: assistantId,
+              }),
+            },
+          );
+
+          if (!runResponse.ok) {
+            throw new Error(`Failed to create run: ${runResponse.statusText}`);
+          }
+
+          const runData = await runResponse.json();
+          console.log("[Thread] Run created:", runData.id);
+
+          // Step 4: Poll for run completion
+          let runStatus = runData.status;
+          while (runStatus === "queued" || runStatus === "in_progress") {
+            // Update bot message to show processing status
+            get().updateTargetSession(session, (session) => {
+              const lastMessage = session.messages[session.messages.length - 1];
+              if (lastMessage && lastMessage.role === "assistant") {
+                lastMessage.content = `正在处理中... (${
+                  runStatus === "queued" ? "排队中" : "处理中"
+                })`;
+                lastMessage.streaming = true;
+                // Force re-render by updating the messages array
+                session.messages = [...session.messages];
               }
-              get().updateTargetSession(session, (session) => {
-                session.messages = session.messages.concat();
-              });
-            },
-            async onFinish(message) {
-              botMessage.streaming = false;
-              if (message) {
-                botMessage.content = message;
-                botMessage.date = new Date().toLocaleString();
-                get().onNewMessage(botMessage, session);
-              }
-              ChatControllerPool.remove(session.id, botMessage.id);
+            });
 
-              // After finishing, reload messages from thread to ensure consistency
-              await get().loadThreadMessages(session.threadId!);
-            },
-            onBeforeTool(tool: ChatMessageTool) {
-              (botMessage.tools = botMessage?.tools || []).push(tool);
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            const statusResponse = await fetch(
+              `/api/openai/v1/threads/${session.threadId}/runs/${runData.id}`,
+              {
+                headers,
+              },
+            );
+
+            if (!statusResponse.ok) {
+              throw new Error(
+                `Failed to check run status: ${statusResponse.statusText}`,
+              );
+            }
+
+            const statusData = await statusResponse.json();
+            runStatus = statusData.status;
+            console.log("[Thread] Run status:", runStatus);
+          }
+
+          if (runStatus === "completed") {
+            // Step 5: Get the assistant's response from the thread
+            const messagesResponse = await fetch(
+              `/api/openai/v1/threads/${session.threadId}/messages`,
+              {
+                headers,
+              },
+            );
+
+            if (!messagesResponse.ok) {
+              throw new Error(
+                `Failed to get thread messages: ${messagesResponse.statusText}`,
+              );
+            }
+
+            const messagesData = await messagesResponse.json();
+            const threadMessages = messagesData.data || [];
+
+            // Find the latest assistant message
+            const latestAssistantMessage = threadMessages
+              .filter((msg: any) => msg.role === "assistant")
+              .sort((a: any, b: any) => b.created_at - a.created_at)[0];
+
+            if (latestAssistantMessage) {
+              const content = Array.isArray(latestAssistantMessage.content)
+                ? latestAssistantMessage.content.find(
+                    (item: any) => item.type === "text",
+                  )?.text?.value || ""
+                : latestAssistantMessage.content || "";
+
+              // Update the existing bot message with the response
               get().updateTargetSession(session, (session) => {
-                session.messages = session.messages.concat();
-              });
-            },
-            onAfterTool(tool: ChatMessageTool) {
-              botMessage?.tools?.forEach((t, i, tools) => {
-                if (tool.id == t.id) {
-                  tools[i] = { ...tool };
+                const lastMessage =
+                  session.messages[session.messages.length - 1];
+                if (lastMessage && lastMessage.role === "assistant") {
+                  lastMessage.content = content;
+                  lastMessage.date = new Date().toLocaleString();
+                  lastMessage.streaming = false;
+                  session.lastUpdate = Date.now();
+                  // Force re-render by updating the messages array
+                  session.messages = [...session.messages];
                 }
               });
-              get().updateTargetSession(session, (session) => {
-                session.messages = session.messages.concat();
-              });
-            },
-            onError(error) {
-              const isAborted = error.message?.includes?.("aborted");
-              botMessage.content +=
-                "\n\n" +
-                prettyObject({
-                  error: true,
-                  message: error.message,
-                });
-              botMessage.streaming = false;
-              get().updateTargetSession(session, (session) => {
-                session.messages = session.messages.concat();
-              });
-            },
-            onController(controller) {
-              ChatControllerPool.addController(
-                session.id,
-                botMessage.id,
-                controller,
+
+              // Update statistics and other processing
+              get().updateStat(botMessage, session);
+              get().checkMcpJson(botMessage);
+
+              console.log(
+                "[Thread] Assistant response received:",
+                content.substring(0, 100) + "...",
               );
-            },
-          });
+            } else {
+              throw new Error("No assistant response found in thread");
+            }
+          } else {
+            throw new Error(`Run failed with status: ${runStatus}`);
+          }
         } catch (error) {
           console.error("[Thread Message] Error:", error);
-          botMessage.content = `Error: ${
+          const errorContent = `Error: ${
             error instanceof Error ? error.message : String(error)
           }`;
-          botMessage.streaming = false;
+
+          // Update the existing bot message with error
           get().updateTargetSession(session, (session) => {
-            session.messages = session.messages.concat();
+            const lastMessage = session.messages[session.messages.length - 1];
+            if (lastMessage && lastMessage.role === "assistant") {
+              lastMessage.content = errorContent;
+              lastMessage.streaming = false;
+              lastMessage.isError = true;
+              session.lastUpdate = Date.now();
+              // Force re-render by updating the messages array
+              session.messages = [...session.messages];
+            }
           });
         }
       },

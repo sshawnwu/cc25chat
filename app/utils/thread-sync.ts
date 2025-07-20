@@ -6,6 +6,7 @@ import { getHeaders } from "../client/api";
  */
 
 let syncIntervals: Map<string, NodeJS.Timeout> = new Map();
+let lastMessageCounts: Map<string, number> = new Map();
 
 /**
  * Start syncing a thread - periodically reload messages from OpenAI
@@ -21,11 +22,36 @@ export function startThreadSync(
   const interval = setInterval(async () => {
     try {
       const messages = await loadThreadMessages(threadId);
-      onUpdate(messages);
+      const currentCount = lastMessageCounts.get(threadId) || 0;
+
+      // Only update if we have new messages and the count has increased
+      if (messages.length > currentCount) {
+        lastMessageCounts.set(threadId, messages.length);
+
+        // Convert thread messages to chat format
+        const chatMessages = messages.map((msg: any) => {
+          const content = Array.isArray(msg.content)
+            ? msg.content.find((item: any) => item.type === "text")?.text
+                ?.value || ""
+            : msg.content || "";
+
+          return {
+            id: msg.id,
+            role: msg.role,
+            content: content,
+            date: new Date(msg.created_at * 1000).toLocaleString(),
+          };
+        });
+
+        onUpdate(chatMessages);
+        console.log(
+          `[Thread Sync] Synced ${messages.length} messages for thread: ${threadId}`,
+        );
+      }
     } catch (error) {
       console.error("[Thread Sync] Failed to sync thread:", threadId, error);
     }
-  }, 5000); // Sync every 5 seconds
+  }, 10000); // Sync every 10 seconds (less aggressive)
 
   syncIntervals.set(threadId, interval);
   console.log("[Thread Sync] Started syncing thread:", threadId);
@@ -39,6 +65,7 @@ export function stopThreadSync(threadId: string) {
   if (interval) {
     clearInterval(interval);
     syncIntervals.delete(threadId);
+    lastMessageCounts.delete(threadId);
     console.log("[Thread Sync] Stopped syncing thread:", threadId);
   }
 }
@@ -52,6 +79,7 @@ export function stopAllThreadSync() {
     console.log("[Thread Sync] Stopped syncing thread:", threadId);
   });
   syncIntervals.clear();
+  lastMessageCounts.clear();
 }
 
 /**
@@ -86,4 +114,24 @@ export function isThreadSyncing(threadId: string): boolean {
  */
 export function getSyncingThreadIds(): string[] {
   return Array.from(syncIntervals.keys());
+}
+
+/**
+ * Manually trigger a sync for a thread
+ */
+export async function triggerThreadSync(
+  threadId: string,
+  onUpdate: (messages: any[]) => void,
+) {
+  try {
+    const messages = await loadThreadMessages(threadId);
+    onUpdate(messages);
+    console.log(`[Thread Sync] Manual sync triggered for thread: ${threadId}`);
+  } catch (error) {
+    console.error(
+      "[Thread Sync] Manual sync failed for thread:",
+      threadId,
+      error,
+    );
+  }
 }

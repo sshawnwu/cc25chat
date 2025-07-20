@@ -12,6 +12,7 @@ declare global {
 
       BASE_URL?: string;
       OPENAI_ORG_ID?: string; // openai only
+      ASSISTANT_ID?: string; // openai assistants only
 
       VERCEL?: string;
       BUILD_MODE?: "standalone" | "export";
@@ -184,6 +185,7 @@ export const getServerSideConfig = () => {
     baseUrl: process.env.BASE_URL,
     apiKey: getApiKey(process.env.OPENAI_API_KEY),
     openaiOrgId: process.env.OPENAI_ORG_ID,
+    assistantId: process.env.ASSISTANT_ID,
 
     isStability,
     stabilityUrl: process.env.STABILITY_URL,

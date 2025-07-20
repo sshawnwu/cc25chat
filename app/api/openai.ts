@@ -9,7 +9,10 @@ import { requestOpenai } from "./common";
 const ALLOWED_PATH = new Set([
   ...Object.values(OpenaiPath),
   // Add support for thread messages path with dynamic thread_id
-  "v1/threads/{thread_id}/messages"
+  "v1/threads/{thread_id}/messages",
+  // Add support for thread runs path with dynamic thread_id and run_id
+  "v1/threads/{thread_id}/runs",
+  "v1/threads/{thread_id}/runs/{run_id}",
 ]);
 
 function getModels(remoteModelRes: OpenAIListModelResponse) {
@@ -42,10 +45,19 @@ export async function handle(
 
   const subpath = params.path.join("/");
 
-  // Check if this is a thread messages request
+  // Check if this is a thread-related request (messages or runs)
   const isThreadMessages = subpath.match(/^v1\/threads\/[^\/]+\/messages$/);
-  
-  if (!ALLOWED_PATH.has(subpath) && !isThreadMessages) {
+  const isThreadRuns = subpath.match(/^v1\/threads\/[^\/]+\/runs$/);
+  const isThreadRunStatus = subpath.match(
+    /^v1\/threads\/[^\/]+\/runs\/[^\/]+$/,
+  );
+
+  if (
+    !ALLOWED_PATH.has(subpath) &&
+    !isThreadMessages &&
+    !isThreadRuns &&
+    !isThreadRunStatus
+  ) {
     console.log("[OpenAI Route] forbidden path ", subpath);
     return NextResponse.json(
       {

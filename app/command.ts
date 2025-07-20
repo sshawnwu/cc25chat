@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import Locale from "./locales";
 
@@ -15,30 +15,43 @@ interface Commands {
 
 export function useCommand(commands: Commands = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const processedCommandsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let shouldUpdate = false;
-    
+
     // First check React Router search params
     searchParams.forEach((param, name) => {
       const commandName = name as keyof Commands;
-      if (typeof commands[commandName] === "function") {
+      const commandKey = `${name}:${param}`;
+
+      if (
+        typeof commands[commandName] === "function" &&
+        !processedCommandsRef.current.has(commandKey)
+      ) {
         commands[commandName]!(param);
         searchParams.delete(name);
         shouldUpdate = true;
+        processedCommandsRef.current.add(commandKey);
       }
     });
-    
+
     // Then check URL search params (for HashRouter compatibility)
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.forEach((param, name) => {
       const commandName = name as keyof Commands;
-      if (typeof commands[commandName] === "function") {
+      const commandKey = `${name}:${param}`;
+
+      if (
+        typeof commands[commandName] === "function" &&
+        !processedCommandsRef.current.has(commandKey)
+      ) {
         commands[commandName]!(param);
         // Clear the URL parameter by updating the URL
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete(name);
-        window.history.replaceState({}, '', newUrl.toString());
+        window.history.replaceState({}, "", newUrl.toString());
+        processedCommandsRef.current.add(commandKey);
       }
     });
 

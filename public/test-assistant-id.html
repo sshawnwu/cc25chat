@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant ID Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button { padding: 8px 12px; margin: 5px; cursor: pointer; }
+        input { padding: 5px; margin: 5px; width: 300px; }
+        .message { margin: 10px 0; padding: 10px; border-left: 3px solid #007bff; background: #f8f9fa; }
+        .user { border-left-color: #28a745; }
+        .assistant { border-left-color: #007bff; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .config-info { background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Assistant ID Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Environment Configuration</h3>
+        <div class="config-info">
+            <p><strong>ASSISTANT_ID:</strong> <span id="assistantId">Loading...</span></p>
+            <p><strong>Status:</strong> <span id="configStatus">Checking...</span></p>
+        </div>
+        <button onclick="checkConfig()">Check Configuration</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Thread Setup</h3>
+        <input type="text" id="threadId" placeholder="Enter thread ID">
+        <button onclick="loadThread()">Load Thread</button>
+        <button onclick="createThread()">Create New Thread</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Assistant Test</h3>
+        <input type="text" id="messageText" placeholder="Enter message to send">
+        <button onclick="sendMessage()">Send Message with Assistant</button>
+        <button onclick="testAssistantResponse()">Test Assistant Response</button>
+    </div>
+    
+    <div class="test-section">
+        <h3>4. Run Status Test</h3>
+        <input type="text" id="runId" placeholder="Enter run ID">
+        <button onclick="checkRunStatus()">Check Run Status</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <div id="messages"></div>
+    
+    <script>
+        let currentThreadId = null;
+        let currentRunId = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        async function checkConfig() {
+            log('Checking environment configuration...', 'info');
+            
+            try {
+                // Try to create a thread to test if assistant ID is configured
+                const response = await fetch('/api/openai/v1/threads', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('assistantId').textContent = 'Configured (ID hidden for security)';
+                    document.getElementById('configStatus').textContent = '✅ Ready';
+                    log('✅ Assistant ID is configured and working', 'success');
+                    
+                    // Store the thread ID for testing
+                    currentThreadId = data.id;
+                    document.getElementById('threadId').value = currentThreadId;
+                    log(`Thread created for testing: ${currentThreadId}`, 'info');
+                } else {
+                    const errorData = await response.json();
+                    if (errorData.message && errorData.message.includes('ASSISTANT_ID')) {
+                        document.getElementById('assistantId').textContent = 'Not configured';
+                        document.getElementById('configStatus').textContent = '❌ Missing ASSISTANT_ID';
+                        log('❌ ASSISTANT_ID environment variable is not set', 'error');
+                    } else {
+                        document.getElementById('assistantId').textContent = 'Error checking';
+                        document.getElementById('configStatus').textContent = '❌ Configuration error';
+                        log(`❌ Configuration error: ${errorData.message}`, 'error');
+                    }
+                }
+            } catch (error) {
+                document.getElementById('assistantId').textContent = 'Error checking';
+                document.getElementById('configStatus').textContent = '❌ Network error';
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function createThread() {
+            log('Creating new thread...', 'info');
+            
+            try {
+                const response = await fetch('/api/openai/v1/threads', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                currentThreadId = data.id;
+                document.getElementById('threadId').value = currentThreadId;
+                log(`✓ Thread created: ${currentThreadId}`, 'success');
+                
+            } catch (error) {
+                log(`❌ Failed to create thread: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadThread() {
+            const threadId = document.getElementById('threadId').value.trim();
+            if (!threadId) {
+                log('Please enter a thread ID', 'error');
+                return;
+            }
+            
+            currentThreadId = threadId;
+            log(`Loading thread: ${threadId}`, 'info');
+            await loadMessages();
+        }
+        
+        async function loadMessages() {
+            if (!currentThreadId) {
+                log('No thread ID set', 'error');
+                return;
+            }
+            
+            log(`Loading messages for thread: ${currentThreadId}`, 'info');
+            
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${currentThreadId}/messages`, {
+                    method: "GET",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                displayMessages(data.data || []);
+                log(`✓ Loaded ${data.data?.length || 0} messages`, 'success');
+                
+            } catch (error) {
+                log(`❌ Failed to load messages: ${error.message}`, 'error');
+            }
+        }
+        
+        async function sendMessage() {
+            const messageText = document.getElementById('messageText').value.trim();
+            
+            if (!currentThreadId || !messageText) {
+                log('Please enter both thread ID and message', 'error');
+                return;
+            }
+            
+            log(`Sending message to thread: ${currentThreadId}`, 'info');
+            
+            try {
+                // Step 1: Send user message
+                const messageResponse = await fetch(`/api/openai/v1/threads/${currentThreadId}/messages`, {
+                    method: "POST",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    },
+                    body: JSON.stringify({
+                        role: "user",
+                        content: messageText
+                    })
+                });
+                
+                if (!messageResponse.ok) {
+                    throw new Error(`Failed to send message: ${messageResponse.statusText}`);
+                }
+                
+                const messageData = await messageResponse.json();
+                log(`✓ Message sent: ${messageData.id}`, 'success');
+                
+                // Step 2: Create run with assistant
+                const runResponse = await fetch(`/api/openai/v1/threads/${currentThreadId}/runs`, {
+                    method: "POST",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    },
+                    body: JSON.stringify({
+                        assistant_id: "assistant" // This will use the ASSISTANT_ID from environment
+                    })
+                });
+                
+                if (!runResponse.ok) {
+                    throw new Error(`Failed to create run: ${runResponse.statusText}`);
+                }
+                
+                const runData = await runResponse.json();
+                currentRunId = runData.id;
+                document.getElementById('runId').value = currentRunId;
+                log(`✓ Run created: ${currentRunId}`, 'success');
+                
+                // Step 3: Poll for completion
+                await pollRunCompletion(currentRunId);
+                
+                document.getElementById('messageText').value = '';
+                
+            } catch (error) {
+                log(`❌ Failed to send message: ${error.message}`, 'error');
+            }
+        }
+        
+        async function pollRunCompletion(runId) {
+            log(`Polling run completion: ${runId}`, 'info');
+            
+            let attempts = 0;
+            const maxAttempts = 30; // 30 seconds max
+            
+            while (attempts < maxAttempts) {
+                try {
+                    const statusResponse = await fetch(`/api/openai/v1/threads/${currentThreadId}/runs/${runId}`, {
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'OpenAI-Beta': 'assistants=v2'
+                        }
+                    });
+                    
+                    if (!statusResponse.ok) {
+                        throw new Error(`Failed to check run status: ${statusResponse.statusText}`);
+                    }
+                    
+                    const statusData = await statusResponse.json();
+                    log(`Run status: ${statusData.status}`, 'info');
+                    
+                    if (statusData.status === 'completed') {
+                        log('✓ Run completed successfully', 'success');
+                        await loadMessages(); // Reload messages to see assistant response
+                        return;
+                    } else if (statusData.status === 'failed') {
+                        throw new Error(`Run failed: ${statusData.last_error?.message || 'Unknown error'}`);
+                    } else if (statusData.status === 'cancelled') {
+                        throw new Error('Run was cancelled');
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+                    attempts++;
+                    
+                } catch (error) {
+                    log(`❌ Error polling run: ${error.message}`, 'error');
+                    break;
+                }
+            }
+            
+            if (attempts >= maxAttempts) {
+                log('⚠️ Run polling timed out', 'warning');
+            }
+        }
+        
+        async function testAssistantResponse() {
+            if (!currentThreadId) {
+                log('No thread ID set', 'error');
+                return;
+            }
+            
+            log('Testing assistant response...', 'info');
+            
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${currentThreadId}/messages`, {
+                    method: "GET",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const assistantMessages = data.data?.filter(msg => msg.role === 'assistant') || [];
+                
+                if (assistantMessages.length > 0) {
+                    const latestAssistant = assistantMessages[assistantMessages.length - 1];
+                    const content = Array.isArray(latestAssistant.content) 
+                        ? latestAssistant.content.find(item => item.type === 'text')?.text?.value || 'No text content'
+                        : latestAssistant.content || 'No content';
+                    
+                    log(`✓ Latest assistant response: ${content.substring(0, 100)}...`, 'success');
+                } else {
+                    log('No assistant responses found', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Failed to test assistant response: ${error.message}`, 'error');
+            }
+        }
+        
+        async function checkRunStatus() {
+            const runId = document.getElementById('runId').value.trim();
+            
+            if (!runId || !currentThreadId) {
+                log('Please enter both thread ID and run ID', 'error');
+                return;
+            }
+            
+            log(`Checking run status: ${runId}`, 'info');
+            
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${currentThreadId}/runs/${runId}`, {
+                    method: "GET",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`✓ Run status: ${data.status}`, 'success');
+                
+                if (data.status === 'completed') {
+                    log('✓ Run completed successfully', 'success');
+                } else if (data.status === 'failed') {
+                    log(`❌ Run failed: ${data.last_error?.message || 'Unknown error'}`, 'error');
+                } else if (data.status === 'cancelled') {
+                    log('⚠️ Run was cancelled', 'warning');
+                } else {
+                    log(`⏳ Run is still in progress: ${data.status}`, 'info');
+                }
+                
+            } catch (error) {
+                log(`❌ Failed to check run status: ${error.message}`, 'error');
+            }
+        }
+        
+        function displayMessages(messages) {
+            const messagesDiv = document.getElementById('messages');
+            if (!messages || messages.length === 0) {
+                messagesDiv.innerHTML = '<p>No messages found</p>';
+                return;
+            }
+            
+            const messagesHtml = messages.map(msg => {
+                const content = Array.isArray(msg.content) 
+                    ? msg.content.find(item => item.type === 'text')?.text?.value || 'No text content'
+                    : msg.content || 'No content';
+                
+                const messageClass = msg.role === 'user' ? 'user' : 'assistant';
+                
+                return `
+                    <div class="message ${messageClass}">
+                        <strong>${msg.role}</strong> (${new Date(msg.created_at * 1000).toLocaleString()})
+                        <p>${content}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            messagesDiv.innerHTML = messagesHtml;
+        }
+        
+        // Auto-check configuration on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => checkConfig(), 1000);
+        });
+    </script>
+</body>
+</html> 

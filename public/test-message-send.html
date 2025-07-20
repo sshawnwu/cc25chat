@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Send Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 8px 12px; margin: 5px; cursor: pointer; }
+        input { padding: 5px; margin: 5px; width: 300px; }
+        .message { margin: 10px 0; padding: 10px; border-left: 3px solid #007bff; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>Message Send Test</h1>
+    
+    <div>
+        <input type="text" id="threadId" placeholder="Enter thread ID">
+        <input type="text" id="messageText" placeholder="Enter message to send">
+        <button onclick="sendMessage()">Send Message</button>
+        <button onclick="loadMessages()">Load Messages</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <div id="messages"></div>
+    
+    <script>
+        let currentThreadId = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('messages').innerHTML = '';
+        }
+        
+        function displayMessages(messages) {
+            const messagesDiv = document.getElementById('messages');
+            if (!messages || messages.length === 0) {
+                messagesDiv.innerHTML = '<p>No messages found</p>';
+                return;
+            }
+            
+            const messagesHtml = messages.map(msg => {
+                const content = Array.isArray(msg.content) 
+                    ? msg.content.find(item => item.type === 'text')?.text?.value || 'No text content'
+                    : msg.content || 'No content';
+                
+                return `
+                    <div class="message">
+                        <strong>${msg.role}</strong> (${new Date(msg.created_at * 1000).toLocaleString()})
+                        <p>${content}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            messagesDiv.innerHTML = messagesHtml;
+        }
+        
+        async function sendMessage() {
+            const threadId = document.getElementById('threadId').value.trim();
+            const messageText = document.getElementById('messageText').value.trim();
+            
+            if (!threadId || !messageText) {
+                log('Please enter both thread ID and message', 'error');
+                return;
+            }
+            
+            currentThreadId = threadId;
+            log(`Sending message to thread: ${threadId}`, 'info');
+            
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: "POST",
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    },
+                    body: JSON.stringify({
+                        role: "user",
+                        content: messageText
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`✓ Message sent successfully! ID: ${data.id}`, 'success');
+                document.getElementById('messageText').value = '';
+                
+                // Load updated messages
+                setTimeout(() => loadMessages(), 1000);
+                
+            } catch (error) {
+                log(`❌ Failed to send message: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadMessages() {
+            const threadId = document.getElementById('threadId').value.trim();
+            if (!threadId) {
+                log('Please enter a thread ID', 'error');
+                return;
+            }
+            
+            log(`Loading messages for thread: ${threadId}`, 'info');
+            
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: "GET",
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                displayMessages(data.data || []);
+                log(`✓ Loaded ${data.data?.length || 0} messages`, 'success');
+                
+            } catch (error) {
+                log(`❌ Failed to load messages: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-load if thread_id is in URL
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const threadId = urlParams.get('thread_id');
+            if (threadId) {
+                document.getElementById('threadId').value = threadId;
+                setTimeout(() => loadMessages(), 1000);
+            }
+        });
+    </script>
+</body>
+</html> 

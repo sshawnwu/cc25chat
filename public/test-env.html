@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Environment Variable Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button { padding: 8px 12px; margin: 5px; cursor: pointer; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Environment Variable Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test ASSISTANT_ID Configuration</h3>
+        <button onclick="testAssistantId()">Test ASSISTANT_ID</button>
+        <div id="assistantIdResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Test Thread Creation with Assistant</h3>
+        <button onclick="testThreadCreation()">Create Thread with Assistant</button>
+        <div id="threadResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Test Server Config</h3>
+        <button onclick="testServerConfig()">Test Server Configuration</button>
+        <div id="serverConfigResult"></div>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div class="status ${type}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        async function testAssistantId() {
+            log('Testing ASSISTANT_ID configuration...', 'info');
+            const resultDiv = document.getElementById('assistantIdResult');
+            
+            try {
+                // First, get the assistant configuration
+                const configResponse = await fetch('/api/assistant-config');
+                if (!configResponse.ok) {
+                    throw new Error(`Failed to get assistant configuration: ${configResponse.statusText}`);
+                }
+                
+                const configData = await configResponse.json();
+                
+                if (!configData.hasAssistantId) {
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ ASSISTANT_ID is not configured
+                        </div>
+                    `;
+                    log('❌ ASSISTANT_ID is not configured', 'error');
+                    return;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        ✅ ASSISTANT_ID is configured: ${configData.assistantId}<br>
+                        Testing thread creation...
+                    </div>
+                `;
+                log(`✅ ASSISTANT_ID is configured: ${configData.assistantId}`, 'success');
+                
+                // Try to create a thread to test if assistant ID is configured
+                const response = await fetch('/api/openai/v1/threads', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ ASSISTANT_ID is configured and working<br>
+                            Assistant ID: ${configData.assistantId}<br>
+                            Thread created: ${data.id}
+                        </div>
+                    `;
+                    log('✅ Thread creation successful', 'success');
+                    
+                    // Test creating a run with the assistant
+                    await testRunCreation(data.id, configData.assistantId);
+                    
+                } else {
+                    const errorData = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ Thread creation failed: ${errorData.message || 'Unknown error'}<br>
+                            Status: ${response.status}
+                        </div>
+                    `;
+                    log(`❌ Thread creation failed: ${errorData.message}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Network error: ${error.message}
+                    </div>
+                `;
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testRunCreation(threadId, assistantId) {
+            log(`Testing run creation with thread: ${threadId} and assistant: ${assistantId}`, 'info');
+            
+            try {
+                const runResponse = await fetch(`/api/openai/v1/threads/${threadId}/runs`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    },
+                    body: JSON.stringify({
+                        assistant_id: assistantId
+                    })
+                });
+                
+                if (runResponse.ok) {
+                    const runData = await runResponse.json();
+                    log(`✅ Run created successfully: ${runData.id}`, 'success');
+                    log(`Run status: ${runData.status}`, 'info');
+                } else {
+                    const errorData = await runResponse.json();
+                    log(`❌ Run creation failed: ${errorData.message}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Run creation error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testThreadCreation() {
+            log('Testing thread creation...', 'info');
+            const resultDiv = document.getElementById('threadResult');
+            
+            try {
+                const response = await fetch('/api/openai/v1/threads', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'OpenAI-Beta': 'assistants=v2'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Thread created successfully<br>
+                            Thread ID: ${data.id}<br>
+                            Created at: ${new Date(data.created_at * 1000).toLocaleString()}
+                        </div>
+                    `;
+                    log(`✅ Thread created: ${data.id}`, 'success');
+                } else {
+                    const errorData = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ Thread creation failed: ${errorData.message}
+                        </div>
+                    `;
+                    log(`❌ Thread creation failed: ${errorData.message}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Network error: ${error.message}
+                    </div>
+                `;
+                log(`❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testServerConfig() {
+            log('Testing server configuration...', 'info');
+            const resultDiv = document.getElementById('serverConfigResult');
+            
+            try {
+                // Try to access a simple endpoint to check server config
+                const response = await fetch('/api/openai/v1/models', {
+                    method: 'GET',
+                    headers: { 
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Server is responding correctly<br>
+                            Models available: ${data.data?.length || 0}
+                        </div>
+                    `;
+                    log('✅ Server configuration is working', 'success');
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ Server configuration error: ${response.status}
+                        </div>
+                    `;
+                    log(`❌ Server configuration error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Server error: ${error.message}
+                    </div>
+                `;
+                log(`❌ Server error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testAssistantId();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 
