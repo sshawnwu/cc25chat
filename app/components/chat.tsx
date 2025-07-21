@@ -1152,7 +1152,15 @@ function _Chat() {
       const stopTiming = Date.now() - REQUEST_TIMEOUT_MS;
       session.messages.forEach((m) => {
         // check if should stop all stale messages
-        if (m.isError || new Date(m.date).getTime() < stopTiming) {
+        let messageTime: number;
+        try {
+          messageTime = new Date(m.date).getTime();
+          if (isNaN(messageTime)) messageTime = Date.now();
+        } catch {
+          messageTime = Date.now();
+        }
+
+        if (m.isError || messageTime < stopTiming) {
           if (m.streaming) {
             m.streaming = false;
           }
@@ -1352,8 +1360,22 @@ function _Chat() {
   const renderMessages = useMemo(() => {
     // 按时间升序排序消息（最早的在前），如果时间相同则按ID排序
     const sortedMessages = [...session.messages].sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
+      // 安全地解析日期，如果解析失败则使用当前时间
+      let dateA: number, dateB: number;
+
+      try {
+        dateA = new Date(a.date).getTime();
+        if (isNaN(dateA)) dateA = Date.now();
+      } catch {
+        dateA = Date.now();
+      }
+
+      try {
+        dateB = new Date(b.date).getTime();
+        if (isNaN(dateB)) dateB = Date.now();
+      } catch {
+        dateB = Date.now();
+      }
 
       // 如果时间差小于1秒，认为是同一时间，按ID排序
       if (Math.abs(dateA - dateB) < 1000) {
@@ -1363,34 +1385,32 @@ function _Chat() {
       return dateA - dateB;
     });
 
-    return context
-      .concat(sortedMessages as RenderMessage[])
-      .concat(
-        isLoading
-          ? [
-              {
-                ...createMessage({
-                  role: "assistant",
-                  content: "……",
-                }),
-                preview: true,
-              },
-            ]
-          : [],
-      )
-      .concat(
-        userInput.length > 0 && config.sendPreviewBubble
-          ? [
-              {
-                ...createMessage({
-                  role: "user",
-                  content: userInput,
-                }),
-                preview: true,
-              },
-            ]
-          : [],
-      );
+    // 构建最终的消息列表，确保预览消息在最后
+    const finalMessages = [...(sortedMessages as RenderMessage[])];
+
+    // 添加用户输入预览（如果有）
+    if (userInput.length > 0 && config.sendPreviewBubble) {
+      finalMessages.push({
+        ...createMessage({
+          role: "user",
+          content: userInput,
+        }),
+        preview: true,
+      });
+    }
+
+    // 添加加载状态消息（如果有）
+    if (isLoading) {
+      finalMessages.push({
+        ...createMessage({
+          role: "assistant",
+          content: "……",
+        }),
+        preview: true,
+      });
+    }
+
+    return context.concat(finalMessages);
   }, [
     config.sendPreviewBubble,
     context,
@@ -2060,7 +2080,22 @@ function _Chat() {
                           <div className={styles["chat-message-action-date"]}>
                             {isContext
                               ? Locale.Chat.IsContext
-                              : message.date.toLocaleString()}
+                              : (() => {
+                                  try {
+                                    // 如果 message.date 已经是格式化的字符串，直接使用
+                                    if (typeof message.date === "string") {
+                                      return message.date;
+                                    }
+                                    // 否则尝试解析为日期
+                                    const date = new Date(message.date);
+                                    if (isNaN(date.getTime())) {
+                                      return new Date().toLocaleString();
+                                    }
+                                    return date.toLocaleString();
+                                  } catch {
+                                    return new Date().toLocaleString();
+                                  }
+                                })()}
                           </div>
                         </div>
                       </div>

@@ -38,6 +38,27 @@ import { collectModelsWithDefaultModel } from "../utils/model";
 import { createEmptyMask, Mask } from "./mask";
 import { executeMcpAction, getAllTools, isMcpEnabled } from "../mcp/actions";
 import { extractMcpJson, isMcpJson } from "../mcp/utils";
+import { generateSessionName } from "../utils/chat";
+
+// Simple cache for thread messages to avoid repeated API calls
+const threadMessageCache = new Map<
+  string,
+  { data: any[]; timestamp: number }
+>();
+const CACHE_DURATION = 30000; // 30 seconds
+
+// Clean up expired cache entries
+function cleanupExpiredCache() {
+  const now = Date.now();
+  for (const [key, value] of threadMessageCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      threadMessageCache.delete(key);
+    }
+  }
+}
+
+// Clean up cache every 5 minutes
+setInterval(cleanupExpiredCache, 5 * 60 * 1000);
 
 const localStorage = safeLocalStorage();
 
@@ -378,58 +399,56 @@ export const useChatStore = createPersistStore(
           // Load thread messages
           const threadMessages = await get().loadThreadMessages(threadId);
 
-          // Convert thread messages to chat messages
-          const chatMessages: ChatMessage[] = threadMessages
-            .filter(
-              (msg: any) => msg.role === "user" || msg.role === "assistant",
-            )
-            .map((msg: any) => {
-              // Handle different content formats from OpenAI API
-              let content = "";
-              if (Array.isArray(msg.content)) {
-                // If content is an array, extract text from the first text item
-                const textItem = msg.content.find(
-                  (item: any) => item.type === "text",
-                );
-                if (textItem) {
-                  // Handle OpenAI thread message format: text.value
-                  content = textItem.text?.value || textItem.text || "";
-                }
-              } else if (typeof msg.content === "string") {
-                // If content is a string, use it directly
-                content = msg.content;
-              } else if (
-                msg.content &&
-                typeof msg.content === "object" &&
-                msg.content.value
-              ) {
-                // Handle OpenAI thread message format: {value: "...", annotations: [...]}
-                content = msg.content.value || "";
-              } else {
-                // Fallback for other formats
-                content = "";
-              }
+          // Convert thread messages to chat messages (optimized)
+          const chatMessages: ChatMessage[] = [];
 
-              // Ensure content is never null or undefined
-              if (content === null || content === undefined) {
-                content = "";
-              }
+          for (const msg of threadMessages) {
+            if (msg.role !== "user" && msg.role !== "assistant") continue;
 
-              return createMessage({
+            // Optimized content extraction
+            let content = "";
+            if (Array.isArray(msg.content)) {
+              const textItem = msg.content.find(
+                (item: any) => item.type === "text",
+              );
+              content = textItem?.text?.value || textItem?.text || "";
+            } else if (typeof msg.content === "string") {
+              content = msg.content;
+            } else if (msg.content?.value) {
+              content = msg.content.value;
+            }
+
+            // Ensure content is never null or undefined
+            content = content || "";
+
+            // Validate created_at timestamp
+            const timestamp =
+              msg.created_at && typeof msg.created_at === "number"
+                ? msg.created_at * 1000
+                : Date.now();
+
+            chatMessages.push(
+              createMessage({
                 role: msg.role,
                 content,
-                date: new Date(msg.created_at * 1000).toLocaleString(),
-              });
-            });
+                date: new Date(timestamp).toLocaleString(),
+              }),
+            );
+          }
 
           session.messages = chatMessages;
 
           // Set lastUpdate based on the last message time from thread
           if (chatMessages.length > 0) {
             const lastMessage = chatMessages[chatMessages.length - 1];
-            // Parse the date string back to timestamp
-            const lastMessageDate = new Date(lastMessage.date);
-            session.lastUpdate = lastMessageDate.getTime();
+            // Use the original created_at timestamp instead of parsing the formatted date
+            const lastThreadMessage = threadMessages[threadMessages.length - 1];
+            if (lastThreadMessage && lastThreadMessage.created_at) {
+              session.lastUpdate = lastThreadMessage.created_at * 1000;
+            } else {
+              // Fallback to current time if no valid timestamp
+              session.lastUpdate = Date.now();
+            }
           }
 
           if (!mask) {
@@ -445,28 +464,30 @@ export const useChatStore = createPersistStore(
           // Even if loading fails, set lastUpdate to current time for new session
           session.lastUpdate = Date.now();
           if (!mask) {
-            // Import the generateSessionName function
-            const { generateSessionName } = await import("../utils/chat");
+            // Use the already imported generateSessionName function
             session.topic = generateSessionName(get().sessions, threadId);
           }
         }
 
         set((state) => {
-          // 按照时间排序插入新会话（时间最早的在前）
-          const newSessions = [...state.sessions, session].sort(
-            (a, b) =>
-              new Date(a.lastUpdate).getTime() -
-              new Date(b.lastUpdate).getTime(),
-          );
+          // 优化：直接插入到正确位置，避免全量排序
+          const sessions = [...state.sessions];
+          let insertIndex = 0;
 
-          // 找到新会话的索引
-          const newSessionIndex = newSessions.findIndex(
-            (s) => s.id === session.id,
-          );
+          // 找到正确的插入位置（按时间升序）
+          for (let i = 0; i < sessions.length; i++) {
+            if (session.lastUpdate <= sessions[i].lastUpdate) {
+              insertIndex = i;
+              break;
+            }
+            insertIndex = i + 1;
+          }
+
+          sessions.splice(insertIndex, 0, session);
 
           return {
-            currentSessionIndex: newSessionIndex,
-            sessions: newSessions,
+            currentSessionIndex: insertIndex,
+            sessions: sessions,
           };
         });
 
@@ -476,40 +497,42 @@ export const useChatStore = createPersistStore(
           startThreadSync(session.threadId, (messages) => {
             // Update session with new messages from thread
             get().updateTargetSession(session, (session) => {
-              // Convert thread messages to chat messages
-              const threadMessages = messages
-                .filter(
-                  (msg: any) => msg.role === "user" || msg.role === "assistant",
-                )
-                .map((msg: any) => {
-                  let content = "";
-                  if (Array.isArray(msg.content)) {
-                    const textItem = msg.content.find(
-                      (item: any) => item.type === "text",
-                    );
-                    if (textItem) {
-                      content = textItem.text?.value || textItem.text || "";
-                    }
-                  } else if (typeof msg.content === "string") {
-                    content = msg.content;
-                  } else if (
-                    msg.content &&
-                    typeof msg.content === "object" &&
-                    msg.content.value
-                  ) {
-                    content = msg.content.value || "";
-                  }
+              // Convert thread messages to chat messages (optimized)
+              const threadMessages: ChatMessage[] = [];
 
-                  if (content === null || content === undefined) {
-                    content = "";
-                  }
+              for (const msg of messages) {
+                if (msg.role !== "user" && msg.role !== "assistant") continue;
 
-                  return createMessage({
+                // Optimized content extraction
+                let content = "";
+                if (Array.isArray(msg.content)) {
+                  const textItem = msg.content.find(
+                    (item: any) => item.type === "text",
+                  );
+                  content = textItem?.text?.value || textItem?.text || "";
+                } else if (typeof msg.content === "string") {
+                  content = msg.content;
+                } else if (msg.content?.value) {
+                  content = msg.content.value;
+                }
+
+                // Ensure content is never null or undefined
+                content = content || "";
+
+                // Validate created_at timestamp
+                const timestamp =
+                  msg.created_at && typeof msg.created_at === "number"
+                    ? msg.created_at * 1000
+                    : Date.now();
+
+                threadMessages.push(
+                  createMessage({
                     role: msg.role,
                     content,
-                    date: new Date(msg.created_at * 1000).toLocaleString(),
-                  });
-                });
+                    date: new Date(timestamp).toLocaleString(),
+                  }),
+                );
+              }
 
               // Only update if we have new messages and they're different from current
               if (threadMessages.length > session.messages.length) {
@@ -544,6 +567,11 @@ export const useChatStore = createPersistStore(
         const deletedSession = get().sessions.at(index);
 
         if (!deletedSession) return;
+
+        // Clear cache for this thread if it exists
+        if (deletedSession.threadId) {
+          threadMessageCache.delete(deletedSession.threadId);
+        }
 
         const sessions = get().sessions.slice();
         sessions.splice(index, 1);
@@ -975,6 +1003,13 @@ export const useChatStore = createPersistStore(
 
       async loadThreadMessages(threadId: string) {
         try {
+          // Check cache first
+          const cached = threadMessageCache.get(threadId);
+          if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+            console.log("[Thread Messages] Using cached data for", threadId);
+            return cached.data;
+          }
+
           // Import getHeaders function to get proper authentication headers
           const { getHeaders } = await import("../client/api");
 
@@ -997,7 +1032,15 @@ export const useChatStore = createPersistStore(
           }
 
           const data = await response.json();
-          return data.data || [];
+          const messages = data.data || [];
+
+          // Cache the result
+          threadMessageCache.set(threadId, {
+            data: messages,
+            timestamp: Date.now(),
+          });
+
+          return messages;
         } catch (error) {
           console.error("[Thread Messages] Failed to load:", error);
           throw error;

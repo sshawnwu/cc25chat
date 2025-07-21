@@ -678,15 +678,15 @@ export function generateSessionName(
       .toString()
       .slice(-2)}`;
 
-    // Find existing sessions with the same date (including those with letters)
-    const sameDateSessions = sessions.filter((session) => {
-      if (!session.topic) return false;
-      // Match both "7/20/25" and "7/20/25 A", "7/20/25 B", etc.
-      return session.topic.match(/^\d{1,2}\/\d{1,2}\/\d{2}(\s[A-Z])?$/);
-    });
+    // Optimized: Count sessions with the same date using a more efficient approach
+    let sameDateCount = 0;
+    const dateRegex = /^\d{1,2}\/\d{1,2}\/\d{2}(\s[A-Z])?$/;
 
-    // Count sessions with the same date
-    const sameDateCount = sameDateSessions.length;
+    for (const session of sessions) {
+      if (session.topic && dateRegex.test(session.topic)) {
+        sameDateCount++;
+      }
+    }
 
     // Generate suffix (A, B, C, etc.) - always start with A
     const suffix = String.fromCharCode(65 + sameDateCount);

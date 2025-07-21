@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Order Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            border-left-color: #2196f3;
+        }
+        .assistant-message {
+            background-color: #f3e5f5;
+            border-left-color: #9c27b0;
+        }
+        .loading-message {
+            background-color: #fff3e0;
+            border-left-color: #ff9800;
+        }
+        .preview-message {
+            background-color: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Message Order Test</h1>
+        
+        <div id="results"></div>
+        
+        <button onclick="runMessageOrderTests()">Run Message Order Tests</button>
+    </div>
+
+    <script>
+        // 模拟 createMessage 函数
+        function createMessage(override = {}) {
+            return {
+                id: Math.random().toString(36).substr(2, 9),
+                date: new Date().toLocaleString(),
+                role: "user",
+                content: "",
+                ...override,
+            };
+        }
+
+        // 模拟消息排序逻辑
+        function sortMessages(messages) {
+            return [...messages].sort((a, b) => {
+                let dateA, dateB;
+                
+                try {
+                    dateA = new Date(a.date).getTime();
+                    if (isNaN(dateA)) dateA = Date.now();
+                } catch {
+                    dateA = Date.now();
+                }
+                
+                try {
+                    dateB = new Date(b.date).getTime();
+                    if (isNaN(dateB)) dateB = Date.now();
+                } catch {
+                    dateB = Date.now();
+                }
+
+                if (Math.abs(dateA - dateB) < 1000) {
+                    return a.id.localeCompare(b.id);
+                }
+
+                return dateA - dateB;
+            });
+        }
+
+        // 模拟新的消息渲染逻辑
+        function renderMessages(sessionMessages, isLoading, userInput, config) {
+            const sortedMessages = sortMessages(sessionMessages);
+            const finalMessages = [...sortedMessages];
+            
+            // 添加用户输入预览（如果有）
+            if (userInput.length > 0 && config.sendPreviewBubble) {
+                finalMessages.push({
+                    ...createMessage({
+                        role: "user",
+                        content: userInput,
+                    }),
+                    preview: true,
+                });
+            }
+            
+            // 添加加载状态消息（如果有）
+            if (isLoading) {
+                finalMessages.push({
+                    ...createMessage({
+                        role: "assistant",
+                        content: "……",
+                    }),
+                    preview: true,
+                });
+            }
+            
+            return finalMessages;
+        }
+
+        function testMessageOrder(description, sessionMessages, isLoading, userInput, config) {
+            const results = document.getElementById('results');
+            
+            const renderedMessages = renderMessages(sessionMessages, isLoading, userInput, config);
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result success';
+            
+            let messagesHtml = '';
+            renderedMessages.forEach((msg, index) => {
+                const messageClass = msg.preview ? 'preview-message' : 
+                                   msg.role === 'user' ? 'user-message' : 'assistant-message';
+                const content = msg.content === '……' ? 'Loading...' : msg.content;
+                messagesHtml += `
+                    <div class="message ${messageClass}">
+                        <strong>${index + 1}.</strong> [${msg.role}] ${content}
+                        ${msg.preview ? ' (preview)' : ''}
+                    </div>
+                `;
+            });
+            
+            resultDiv.innerHTML = `
+                <h3>${description}</h3>
+                <div>${messagesHtml}</div>
+            `;
+            
+            results.appendChild(resultDiv);
+        }
+
+        function runMessageOrderTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+
+            const config = { sendPreviewBubble: true };
+
+            // 测试1：正常消息顺序
+            const normalMessages = [
+                createMessage({ role: "user", content: "Hello", date: "2023-12-20 10:00:00" }),
+                createMessage({ role: "assistant", content: "Hi there!", date: "2023-12-20 10:00:05" }),
+            ];
+            testMessageOrder("Normal messages", normalMessages, false, "", config);
+
+            // 测试2：有加载状态
+            testMessageOrder("With loading state", normalMessages, true, "", config);
+
+            // 测试3：有用户输入预览
+            testMessageOrder("With user input preview", normalMessages, false, "正在输入...", config);
+
+            // 测试4：同时有加载状态和用户输入
+            testMessageOrder("With both loading and user input", normalMessages, true, "正在输入...", config);
+
+            // 测试5：时间戳混乱的消息
+            const mixedMessages = [
+                createMessage({ role: "user", content: "First message", date: "2023-12-20 10:00:10" }),
+                createMessage({ role: "assistant", content: "Second message", date: "2023-12-20 10:00:05" }),
+                createMessage({ role: "user", content: "Third message", date: "2023-12-20 10:00:00" }),
+            ];
+            testMessageOrder("Mixed timestamp messages", mixedMessages, true, "正在输入...", config);
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Performance Test - Sorting Algorithms</h1>
+        
+        <div id="results"></div>
+        
+        <button onclick="runTests()">Run Performance Tests</button>
+    </div>
+
+    <script>
+        function generateTestSessions(count) {
+            const sessions = [];
+            for (let i = 0; i < count; i++) {
+                sessions.push({
+                    id: `session-${i}`,
+                    lastUpdate: Date.now() - Math.random() * 1000000000,
+                    topic: `Session ${i}`
+                });
+            }
+            return sessions;
+        }
+
+        function oldSortMethod(sessions, newSession) {
+            const newSessions = [...sessions, newSession].sort(
+                (a, b) => new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime()
+            );
+            const newSessionIndex = newSessions.findIndex(s => s.id === newSession.id);
+            return { sessions: newSessions, index: newSessionIndex };
+        }
+
+        function newSortMethod(sessions, newSession) {
+            const sessionsCopy = [...sessions];
+            let insertIndex = 0;
+            
+            for (let i = 0; i < sessionsCopy.length; i++) {
+                if (newSession.lastUpdate <= sessionsCopy[i].lastUpdate) {
+                    insertIndex = i;
+                    break;
+                }
+                insertIndex = i + 1;
+            }
+            
+            sessionsCopy.splice(insertIndex, 0, newSession);
+            return { sessions: sessionsCopy, index: insertIndex };
+        }
+
+        function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+
+            const testSizes = [100, 500, 1000, 2000];
+            
+            testSizes.forEach(size => {
+                const sessions = generateTestSessions(size);
+                const newSession = {
+                    id: 'new-session',
+                    lastUpdate: Date.now() - Math.random() * 1000000000,
+                    topic: 'New Session'
+                };
+
+                // Test old method
+                const oldStart = performance.now();
+                const oldResult = oldSortMethod(sessions, newSession);
+                const oldTime = performance.now() - oldStart;
+
+                // Test new method
+                const newStart = performance.now();
+                const newResult = newSortMethod(sessions, newSession);
+                const newTime = performance.now() - newStart;
+
+                const improvement = ((oldTime - newTime) / oldTime * 100).toFixed(2);
+
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `
+                    <strong>Test with ${size} sessions:</strong><br>
+                    Old method: ${oldTime.toFixed(2)}ms<br>
+                    New method: ${newTime.toFixed(2)}ms<br>
+                    Improvement: ${improvement}%<br>
+                    Correctness: ${oldResult.index === newResult.index ? '✅' : '❌'}
+                `;
+                results.appendChild(resultDiv);
+            });
+
+            // Test message conversion performance
+            const messageCounts = [100, 500, 1000];
+            
+            messageCounts.forEach(count => {
+                const messages = [];
+                for (let i = 0; i < count; i++) {
+                    messages.push({
+                        role: i % 2 === 0 ? 'user' : 'assistant',
+                        content: Array.isArray(Math.random() > 0.5) ? 
+                            [{ type: 'text', text: { value: `Message ${i}` } }] : 
+                            `Message ${i}`,
+                        created_at: Date.now() / 1000
+                    });
+                }
+
+                // Test old conversion method
+                const oldStart = performance.now();
+                const oldMessages = messages
+                    .filter(msg => msg.role === "user" || msg.role === "assistant")
+                    .map(msg => {
+                        let content = "";
+                        if (Array.isArray(msg.content)) {
+                            const textItem = msg.content.find(item => item.type === "text");
+                            if (textItem) {
+                                content = textItem.text?.value || textItem.text || "";
+                            }
+                        } else if (typeof msg.content === "string") {
+                            content = msg.content;
+                        } else if (msg.content && typeof msg.content === "object" && msg.content.value) {
+                            content = msg.content.value || "";
+                        }
+                        if (content === null || content === undefined) {
+                            content = "";
+                        }
+                        return {
+                            role: msg.role,
+                            content,
+                            date: new Date(msg.created_at * 1000).toLocaleString()
+                        };
+                    });
+                const oldTime = performance.now() - oldStart;
+
+                // Test new conversion method
+                const newStart = performance.now();
+                const newMessages = [];
+                for (const msg of messages) {
+                    if (msg.role !== "user" && msg.role !== "assistant") continue;
+                    
+                    let content = "";
+                    if (Array.isArray(msg.content)) {
+                        const textItem = msg.content.find(item => item.type === "text");
+                        content = textItem?.text?.value || textItem?.text || "";
+                    } else if (typeof msg.content === "string") {
+                        content = msg.content;
+                    } else if (msg.content?.value) {
+                        content = msg.content.value;
+                    }
+                    content = content || "";
+
+                    newMessages.push({
+                        role: msg.role,
+                        content,
+                        date: new Date(msg.created_at * 1000).toLocaleString()
+                    });
+                }
+                const newTime = performance.now() - newStart;
+
+                const improvement = ((oldTime - newTime) / oldTime * 100).toFixed(2);
+
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'test-result info';
+                resultDiv.innerHTML = `
+                    <strong>Message conversion test with ${count} messages:</strong><br>
+                    Old method: ${oldTime.toFixed(2)}ms<br>
+                    New method: ${newTime.toFixed(2)}ms<br>
+                    Improvement: ${improvement}%<br>
+                    Correctness: ${oldMessages.length === newMessages.length ? '✅' : '❌'}
+                `;
+                results.appendChild(resultDiv);
+            });
+        }
+    </script>
+</body>
+</html> 
