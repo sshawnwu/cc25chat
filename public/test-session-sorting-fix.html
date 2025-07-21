@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Sorting Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        .session-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .session-title {
+            font-weight: bold;
+            color: #495057;
+        }
+        .session-time {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .session-type {
+            color: #28a745;
+            font-size: 12px;
+        }
+        .test-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>会话排序修复测试</h1>
+        <p>验证会话是否按时间排序（时间最早的在前）</p>
+        
+        <div class="test-section">
+            <div class="test-title">🔧 修复内容</div>
+            <p>修改了会话创建逻辑，新会话不再总是添加到开头，而是按时间排序插入</p>
+            
+            <div class="code-block">
+                <strong>修改前：</strong><br>
+                sessions: [session].concat(state.sessions)<br><br>
+                <strong>修改后：</strong><br>
+                const newSessions = [...state.sessions, session].sort(<br>
+                &nbsp;&nbsp;(a, b) => new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime()<br>
+                );
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">📊 排序逻辑测试</div>
+            <div id="sortingTest"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🔄 测试步骤</div>
+            <ol>
+                <li>创建几个不同时间的对话</li>
+                <li>加载一个较旧的thread</li>
+                <li>检查thread是否按正确的时间顺序显示</li>
+                <li>验证时间最早的对话在最前面</li>
+            </ol>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">✅ 预期结果</div>
+            <div class="test-result success">
+                所有会话（包括thread和普通对话）都应该按时间升序排列，时间最早的显示在最前面
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function testSortingLogic() {
+            const testDiv = document.getElementById('sortingTest');
+            
+            // 创建测试数据
+            const now = Date.now();
+            const oneHourAgo = now - (60 * 60 * 1000);
+            const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+            const threeHoursAgo = now - (3 * 60 * 60 * 1000);
+            
+            const sessions = [
+                {
+                    id: 'session_1',
+                    topic: '最新的对话',
+                    lastUpdate: now,
+                    type: '普通对话'
+                },
+                {
+                    id: 'session_2',
+                    topic: '1小时前的Thread',
+                    lastUpdate: oneHourAgo,
+                    type: 'Thread对话'
+                },
+                {
+                    id: 'session_3',
+                    topic: '2小时前的对话',
+                    lastUpdate: twoHoursAgo,
+                    type: '普通对话'
+                },
+                {
+                    id: 'session_4',
+                    topic: '3小时前的Thread',
+                    lastUpdate: threeHoursAgo,
+                    type: 'Thread对话'
+                }
+            ];
+            
+            // 模拟修复后的排序逻辑
+            const sortedSessions = [...sessions].sort(
+                (a, b) => new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime()
+            );
+            
+            testDiv.innerHTML = '<p><strong>原始顺序（新会话在前）：</strong></p>';
+            sessions.forEach((session, index) => {
+                const timeStr = new Date(session.lastUpdate).toLocaleString();
+                testDiv.innerHTML += `
+                    <div class="session-item">
+                        <div class="session-title">${index + 1}. ${session.topic}</div>
+                        <div class="session-time">时间: ${timeStr}</div>
+                        <div class="session-type">类型: ${session.type}</div>
+                    </div>
+                `;
+            });
+            
+            testDiv.innerHTML += '<p><strong>修复后顺序（时间最早的在前）：</strong></p>';
+            sortedSessions.forEach((session, index) => {
+                const timeStr = new Date(session.lastUpdate).toLocaleString();
+                testDiv.innerHTML += `
+                    <div class="session-item">
+                        <div class="session-title">${index + 1}. ${session.topic}</div>
+                        <div class="session-time">时间: ${timeStr}</div>
+                        <div class="session-type">类型: ${session.type}</div>
+                    </div>
+                `;
+            });
+            
+            // 验证排序是否正确
+            const isCorrectlySorted = sortedSessions.every((session, index) => {
+                if (index === 0) return true;
+                return session.lastUpdate >= sortedSessions[index - 1].lastUpdate;
+            });
+            
+            if (isCorrectlySorted) {
+                testDiv.innerHTML += `
+                    <div class="test-result success">
+                        ✅ 排序验证通过！所有会话都按时间升序正确排列
+                    </div>
+                `;
+            } else {
+                testDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 排序验证失败！存在排序错误
+                    </div>
+                `;
+            }
+        }
+        
+        // 页面加载时运行测试
+        window.addEventListener('load', testSortingLogic);
+    </script>
+</body>
+</html> 

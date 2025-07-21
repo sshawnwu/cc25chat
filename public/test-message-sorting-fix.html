@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Sorting Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        .message-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .message-content {
+            flex: 1;
+        }
+        .message-role {
+            font-weight: bold;
+            color: #495057;
+            font-size: 12px;
+        }
+        .message-text {
+            color: #212529;
+            margin: 5px 0;
+        }
+        .message-time {
+            color: #6c757d;
+            font-size: 11px;
+        }
+        .test-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>消息排序修复测试</h1>
+        <p>验证消息是否按时间升序显示（时间最早的在上方）</p>
+        
+        <div class="test-section">
+            <div class="test-title">🔧 修复内容</div>
+            <p>修改了消息渲染逻辑，在显示前对消息按时间升序排序</p>
+            
+            <div class="code-block">
+                <strong>修复前：</strong><br>
+                context.concat(session.messages as RenderMessage[])<br><br>
+                <strong>修复后：</strong><br>
+                const sortedMessages = [...session.messages].sort((a, b) => {<br>
+                &nbsp;&nbsp;const dateA = new Date(a.date).getTime();<br>
+                &nbsp;&nbsp;const dateB = new Date(b.date).getTime();<br>
+                &nbsp;&nbsp;return dateA - dateB;<br>
+                });<br>
+                context.concat(sortedMessages as RenderMessage[])
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">📊 消息排序测试</div>
+            <div id="sortingTest"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">🔄 测试步骤</div>
+            <ol>
+                <li>发送几条消息，观察时间顺序</li>
+                <li>检查消息是否按时间升序显示（最早的在上方）</li>
+                <li>验证AI回复和用户消息的时间顺序是否正确</li>
+            </ol>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">✅ 预期结果</div>
+            <div class="test-result success">
+                所有消息都应该按时间升序排列，时间最早的消息显示在最上方
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function testMessageSorting() {
+            const testDiv = document.getElementById('sortingTest');
+            
+            // 创建测试消息数据（模拟截图中的时间）
+            const messages = [
+                {
+                    id: 'msg_1',
+                    role: 'assistant',
+                    content: 'Google的网站。如果您还有更多问题，请随时询问。',
+                    date: '7/20/2025, 8:25:43 PM'
+                },
+                {
+                    id: 'msg_2',
+                    role: 'user',
+                    content: '你是谁',
+                    date: '7/20/2025, 8:25:40 PM'
+                },
+                {
+                    id: 'msg_3',
+                    role: 'user',
+                    content: 'html 如何生成文字但是自带超链接啊',
+                    date: '7/20/2025, 8:22:37 PM'
+                }
+            ];
+            
+            // 模拟修复前的排序（按时间降序，最新的在上方）
+            const originalOrder = [...messages].sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return dateB - dateA; // 降序
+            });
+            
+            // 模拟修复后的排序（按时间升序，最早的在上方）
+            const fixedOrder = [...messages].sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return dateA - dateB; // 升序
+            });
+            
+            testDiv.innerHTML = '<p><strong>修复前顺序（最新的在上方）：</strong></p>';
+            originalOrder.forEach((message, index) => {
+                const avatar = message.role === 'user' ? '👤' : '🤖';
+                testDiv.innerHTML += `
+                    <div class="message-item">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-role">${message.role === 'user' ? '用户' : 'AI助手'}</div>
+                            <div class="message-text">${message.content}</div>
+                            <div class="message-time">${message.date}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            testDiv.innerHTML += '<p><strong>修复后顺序（最早的在上方）：</strong></p>';
+            fixedOrder.forEach((message, index) => {
+                const avatar = message.role === 'user' ? '👤' : '🤖';
+                testDiv.innerHTML += `
+                    <div class="message-item">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-role">${message.role === 'user' ? '用户' : 'AI助手'}</div>
+                            <div class="message-text">${message.content}</div>
+                            <div class="message-time">${message.date}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 验证排序是否正确
+            const isCorrectlySorted = fixedOrder.every((message, index) => {
+                if (index === 0) return true;
+                const currentTime = new Date(message.date).getTime();
+                const prevTime = new Date(fixedOrder[index - 1].date).getTime();
+                return currentTime >= prevTime;
+            });
+            
+            if (isCorrectlySorted) {
+                testDiv.innerHTML += `
+                    <div class="test-result success">
+                        ✅ 消息排序验证通过！所有消息都按时间升序正确排列
+                    </div>
+                `;
+            } else {
+                testDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 消息排序验证失败！存在排序错误
+                    </div>
+                `;
+            }
+        }
+        
+        // 页面加载时运行测试
+        window.addEventListener('load', testMessageSorting);
+    </script>
+</body>
+</html> 

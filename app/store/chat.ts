@@ -322,10 +322,24 @@ export const useChatStore = createPersistStore(
           session.topic = mask.name;
         }
 
-        set((state) => ({
-          currentSessionIndex: 0,
-          sessions: [session].concat(state.sessions),
-        }));
+        set((state) => {
+          // 按照时间排序插入新会话（时间最早的在前）
+          const newSessions = [...state.sessions, session].sort(
+            (a, b) =>
+              new Date(a.lastUpdate).getTime() -
+              new Date(b.lastUpdate).getTime(),
+          );
+
+          // 找到新会话的索引
+          const newSessionIndex = newSessions.findIndex(
+            (s) => s.id === session.id,
+          );
+
+          return {
+            currentSessionIndex: newSessionIndex,
+            sessions: newSessions,
+          };
+        });
       },
 
       async newSessionWithThread(threadId: string, mask?: Mask) {
@@ -409,6 +423,15 @@ export const useChatStore = createPersistStore(
             });
 
           session.messages = chatMessages;
+
+          // Set lastUpdate based on the last message time from thread
+          if (chatMessages.length > 0) {
+            const lastMessage = chatMessages[chatMessages.length - 1];
+            // Parse the date string back to timestamp
+            const lastMessageDate = new Date(lastMessage.date);
+            session.lastUpdate = lastMessageDate.getTime();
+          }
+
           if (!mask) {
             // Import the generateSessionName function
             const { generateSessionName } = await import("../utils/chat");
@@ -419,6 +442,8 @@ export const useChatStore = createPersistStore(
             "[Thread Session] Failed to load thread messages:",
             error,
           );
+          // Even if loading fails, set lastUpdate to current time for new session
+          session.lastUpdate = Date.now();
           if (!mask) {
             // Import the generateSessionName function
             const { generateSessionName } = await import("../utils/chat");
@@ -426,10 +451,24 @@ export const useChatStore = createPersistStore(
           }
         }
 
-        set((state) => ({
-          currentSessionIndex: 0,
-          sessions: [session].concat(state.sessions),
-        }));
+        set((state) => {
+          // 按照时间排序插入新会话（时间最早的在前）
+          const newSessions = [...state.sessions, session].sort(
+            (a, b) =>
+              new Date(a.lastUpdate).getTime() -
+              new Date(b.lastUpdate).getTime(),
+          );
+
+          // 找到新会话的索引
+          const newSessionIndex = newSessions.findIndex(
+            (s) => s.id === session.id,
+          );
+
+          return {
+            currentSessionIndex: newSessionIndex,
+            sessions: newSessions,
+          };
+        });
 
         // Start thread synchronization for this session
         if (session.threadId) {

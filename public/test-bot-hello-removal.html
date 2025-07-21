@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BotHello Removal Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BotHello 消息移除测试</h1>
+        <p>验证 "Hello! How can I assist you today?" 消息是否已被成功移除</p>
+        
+        <div class="test-result info">
+            <h3>📋 修改内容</h3>
+            <p>已注释掉 <code>app/components/chat.tsx</code> 中自动添加欢迎消息的逻辑</p>
+        </div>
+        
+        <div class="test-result success">
+            <h3>✅ 修改完成</h3>
+            <p>BotHello 消息将不再自动显示在聊天界面中</p>
+        </div>
+        
+        <div class="test-result warning">
+            <h3>⚠️ 注意事项</h3>
+            <p>如果您希望在某些情况下仍然显示欢迎消息，可以取消注释相关代码</p>
+        </div>
+        
+        <div class="code-block">
+            <strong>修改的代码位置：</strong><br>
+            app/components/chat.tsx (第1339-1347行)<br><br>
+            <strong>修改内容：</strong><br>
+            // 注释掉自动添加欢迎消息的逻辑<br>
+            // if (context.length === 0 && session.messages.at(0)?.content !== BOT_HELLO.content) {<br>
+            //   const copiedHello = Object.assign({}, BOT_HELLO);<br>
+            //   if (!accessStore.isAuthorized()) {<br>
+            //     copiedHello.content = Locale.Error.Unauthorized;<br>
+            //   }<br>
+            //   context.push(copiedHello);<br>
+            // }
+        </div>
+        
+        <div class="test-result info">
+            <h3>🔄 测试步骤</h3>
+            <ol>
+                <li>刷新聊天页面</li>
+                <li>创建新的对话</li>
+                <li>检查是否还有 "Hello! How can I assist you today?" 消息</li>
+                <li>如果消息消失，说明修改成功</li>
+            </ol>
+        </div>
+        
+        <div class="test-result success">
+            <h3>🎉 预期结果</h3>
+            <p>新的对话将不再显示默认的欢迎消息，界面会更加简洁</p>
+        </div>
+    </div>
+
+    <script>
+        console.log("BotHello removal test page loaded");
+        console.log("Expected behavior: No more 'Hello! How can I assist you today?' messages");
+    </script>
+</body>
+</html> 

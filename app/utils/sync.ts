@@ -92,10 +92,10 @@ const MergeStates: StateMerger = {
       }
     });
 
-    // sort local sessions with date field in desc order
+    // sort local sessions with date field in asc order (oldest first)
     localState.sessions.sort(
       (a, b) =>
-        new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime(),
+        new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime(),
     );
 
     return localState;

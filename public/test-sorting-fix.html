@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorting Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .session-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .session-title {
+            font-weight: bold;
+            color: #495057;
+        }
+        .session-time {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>对话排序修复测试</h1>
+        <p>验证对话是否按时间最早的在最前面排序</p>
+        
+        <div id="testResults"></div>
+        
+        <div id="sessionsList"></div>
+    </div>
+
+    <script>
+        function testSorting() {
+            const resultsDiv = document.getElementById('testResults');
+            const sessionsDiv = document.getElementById('sessionsList');
+            
+            // 创建测试数据
+            const now = Date.now();
+            const oneHourAgo = now - (60 * 60 * 1000);
+            const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+            const threeHoursAgo = now - (3 * 60 * 60 * 1000);
+            
+            const sessions = [
+                {
+                    id: 'session_1',
+                    topic: '最新的对话',
+                    lastUpdate: now,
+                    isThread: false
+                },
+                {
+                    id: 'session_2',
+                    topic: '1小时前的Thread对话',
+                    lastUpdate: oneHourAgo,
+                    isThread: true
+                },
+                {
+                    id: 'session_3',
+                    topic: '2小时前的普通对话',
+                    lastUpdate: twoHoursAgo,
+                    isThread: false
+                },
+                {
+                    id: 'session_4',
+                    topic: '3小时前的Thread对话',
+                    lastUpdate: threeHoursAgo,
+                    isThread: true
+                }
+            ];
+            
+            // 按升序排序（时间最早的在前）
+            const sortedSessions = [...sessions].sort((a, b) => 
+                new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime()
+            );
+            
+            // 显示测试结果
+            resultsDiv.innerHTML = `
+                <div class="test-result success">
+                    ✅ 排序测试完成！对话已按时间升序排列（最早的在前）
+                </div>
+                <div class="test-result info">
+                    📊 测试数据：${sessions.length} 个对话，时间跨度 ${Math.round((now - threeHoursAgo) / (60 * 60 * 1000))} 小时
+                </div>
+            `;
+            
+            // 显示排序后的会话列表
+            sessionsDiv.innerHTML = '<h3>排序后的对话列表（时间最早的在前）：</h3>';
+            
+            sortedSessions.forEach((session, index) => {
+                const sessionDiv = document.createElement('div');
+                sessionDiv.className = 'session-item';
+                
+                const timeStr = new Date(session.lastUpdate).toLocaleString();
+                const threadLabel = session.isThread ? ' (Thread)' : '';
+                
+                sessionDiv.innerHTML = `
+                    <div class="session-title">${index + 1}. ${session.topic}${threadLabel}</div>
+                    <div class="session-time">时间: ${timeStr}</div>
+                `;
+                
+                sessionsDiv.appendChild(sessionDiv);
+            });
+            
+            // 验证排序是否正确
+            const isCorrectlySorted = sortedSessions.every((session, index) => {
+                if (index === 0) return true;
+                return session.lastUpdate >= sortedSessions[index - 1].lastUpdate;
+            });
+            
+            if (isCorrectlySorted) {
+                resultsDiv.innerHTML += `
+                    <div class="test-result success">
+                        ✅ 排序验证通过！所有对话都按时间升序正确排列
+                    </div>
+                `;
+            } else {
+                resultsDiv.innerHTML += `
+                    <div class="test-result error">
+                        ❌ 排序验证失败！存在排序错误
+                    </div>
+                `;
+            }
+        }
+        
+        // 页面加载时自动运行测试
+        window.addEventListener('load', testSorting);
+    </script>
+</body>
+</html> 

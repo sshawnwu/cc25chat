@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thread Sorting Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-info { background-color: #d1ecf1; }
+        .log-success { background-color: #d4edda; }
+        .log-error { background-color: #f8d7da; }
+        .sessions-list {
+            margin-top: 20px;
+        }
+        .session-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .session-title {
+            font-weight: bold;
+            color: #495057;
+        }
+        .session-time {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .session-messages {
+            color: #28a745;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Thread Sorting Test</h1>
+        <p>Test the sorting logic for thread sessions based on message timestamps.</p>
+        
+        <div class="input-group">
+            <label for="threadId">Thread ID:</label>
+            <input type="text" id="threadId" placeholder="Enter thread ID (e.g., thread_abc123)">
+        </div>
+        
+        <button onclick="loadThread()">Load Thread</button>
+        <button onclick="testSorting()">Test Sorting Logic</button>
+        <button onclick="clearLog()">Clear Log</button>
+        
+        <div class="log" id="log"></div>
+        
+        <div class="sessions-list" id="sessionsList"></div>
+    </div>
+
+    <script>
+        let currentThreadId = null;
+        let mockSessions = [];
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function loadThread() {
+            const threadId = document.getElementById('threadId').value.trim();
+            if (!threadId) {
+                log('Please enter a thread ID', 'error');
+                return;
+            }
+
+            currentThreadId = threadId;
+            log(`Loading thread: ${threadId}`, 'info');
+
+            try {
+                const response = await fetch(`/api/openai/v1/threads/${threadId}/messages`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const messages = data.data || [];
+                
+                log(`Loaded ${messages.length} messages from thread`, 'success');
+                
+                // Simulate the sorting logic
+                await testSortingWithMessages(messages);
+                
+            } catch (error) {
+                log(`Failed to load thread: ${error.message}`, 'error');
+            }
+        }
+
+        async function testSortingWithMessages(threadMessages) {
+            log('Testing sorting logic with actual thread messages...', 'info');
+            
+            // Convert thread messages to chat messages (simulating the actual logic)
+            const chatMessages = threadMessages
+                .filter(msg => msg.role === "user" || msg.role === "assistant")
+                .map(msg => {
+                    let content = "";
+                    if (Array.isArray(msg.content)) {
+                        const textItem = msg.content.find(item => item.type === "text");
+                        if (textItem) {
+                            content = textItem.text?.value || textItem.text || "";
+                        }
+                    } else if (typeof msg.content === "string") {
+                        content = msg.content;
+                    } else if (msg.content && typeof msg.content === "object" && msg.content.value) {
+                        content = msg.content.value || "";
+                    }
+
+                    return {
+                        role: msg.role,
+                        content: content,
+                        date: new Date(msg.created_at * 1000).toLocaleString(),
+                    };
+                });
+
+            log(`Converted ${chatMessages.length} messages to chat format`, 'info');
+            
+            // Calculate lastUpdate based on last message time
+            let lastUpdate = Date.now(); // Default to current time
+            if (chatMessages.length > 0) {
+                const lastMessage = chatMessages[chatMessages.length - 1];
+                const lastMessageDate = new Date(lastMessage.date);
+                lastUpdate = lastMessageDate.getTime();
+                log(`Last message time: ${lastMessage.date}`, 'info');
+                log(`Calculated lastUpdate: ${new Date(lastUpdate).toLocaleString()}`, 'success');
+            }
+
+            // Create mock session
+            const mockSession = {
+                id: 'session_' + Date.now(),
+                topic: `Thread ${currentThreadId}`,
+                threadId: currentThreadId,
+                messages: chatMessages,
+                lastUpdate: lastUpdate,
+                messageCount: chatMessages.length
+            };
+
+            mockSessions.push(mockSession);
+            log(`Added session with lastUpdate: ${new Date(lastUpdate).toLocaleString()}`, 'success');
+            
+            displaySessions();
+        }
+
+        function testSorting() {
+            log('Testing sorting logic with mock data...', 'info');
+            
+            // Create some mock sessions with different timestamps
+            const now = Date.now();
+            const oneHourAgo = now - (60 * 60 * 1000);
+            const twoHoursAgo = now - (2 * 60 * 60 * 1000);
+            
+            mockSessions = [
+                {
+                    id: 'session_1',
+                    topic: 'Regular Chat 1',
+                    lastUpdate: now,
+                    messageCount: 5
+                },
+                {
+                    id: 'session_2', 
+                    topic: 'Thread Session (1 hour ago)',
+                    threadId: 'thread_old',
+                    lastUpdate: oneHourAgo,
+                    messageCount: 10
+                },
+                {
+                    id: 'session_3',
+                    topic: 'Regular Chat 2', 
+                    lastUpdate: twoHoursAgo,
+                    messageCount: 3
+                }
+            ];
+
+            log('Created mock sessions:', 'info');
+            mockSessions.forEach(session => {
+                log(`- ${session.topic}: ${new Date(session.lastUpdate).toLocaleString()}`, 'info');
+            });
+
+            displaySessions();
+        }
+
+        function displaySessions() {
+            const container = document.getElementById('sessionsList');
+            
+            // Sort sessions by lastUpdate in ascending order (oldest first)
+            const sortedSessions = [...mockSessions].sort((a, b) => 
+                new Date(a.lastUpdate).getTime() - new Date(b.lastUpdate).getTime()
+            );
+
+            log('Sessions sorted by lastUpdate (oldest first):', 'success');
+            
+            container.innerHTML = '<h3>Sorted Sessions:</h3>';
+            
+            sortedSessions.forEach((session, index) => {
+                const sessionDiv = document.createElement('div');
+                sessionDiv.className = 'session-item';
+                
+                const isThread = session.threadId ? ' (Thread)' : '';
+                const timeStr = new Date(session.lastUpdate).toLocaleString();
+                
+                sessionDiv.innerHTML = `
+                    <div class="session-title">${index + 1}. ${session.topic}${isThread}</div>
+                    <div class="session-time">Last Update: ${timeStr}</div>
+                    <div class="session-messages">Messages: ${session.messageCount || 0}</div>
+                `;
+                
+                container.appendChild(sessionDiv);
+                log(`${index + 1}. ${session.topic}${isThread} - ${timeStr}`, 'success');
+            });
+        }
+
+        // Auto-load if thread_id is in URL
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const threadId = urlParams.get('thread_id');
+            if (threadId) {
+                document.getElementById('threadId').value = threadId;
+                setTimeout(() => loadThread(), 1000);
+            }
+        });
+    </script>
+</body>
+</html> 

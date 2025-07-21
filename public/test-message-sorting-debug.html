@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Sorting Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .debug-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .debug-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        .message-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        .message-content {
+            flex: 1;
+        }
+        .message-role {
+            font-weight: bold;
+            color: #495057;
+            font-size: 12px;
+        }
+        .message-text {
+            color: #212529;
+            margin: 5px 0;
+        }
+        .message-time {
+            color: #6c757d;
+            font-size: 11px;
+        }
+        .message-id {
+            color: #dc3545;
+            font-size: 10px;
+            font-family: monospace;
+        }
+        .timestamp-debug {
+            background: #e9ecef;
+            padding: 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        .test-result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>消息排序调试工具</h1>
+        <p>分析消息排序问题，帮助定位乱序原因</p>
+        
+        <div class="debug-section">
+            <div class="debug-title">🔍 问题分析</div>
+            <p>从截图观察到的消息顺序：</p>
+            <ol>
+                <li><strong>7:58:42 PM</strong> - AI助手："关于这个问题，我会尽力回答您。"</li>
+                <li><strong>8:20:37 PM</strong> - 用户："你是谁？"</li>
+                <li><strong>8:20:40 PM</strong> - AI助手："投资建议，帮助您处理高风险高回报问题..."</li>
+                <li><strong>8:22:28 PM</strong> - 用户："html 如何生成文字但是自带超链接"</li>
+            </ol>
+            <p>这个顺序看起来是按时间升序排列的，但可能存在以下问题：</p>
+            <ul>
+                <li>时间戳精度问题（毫秒级差异）</li>
+                <li>消息ID冲突</li>
+                <li>混合消息源（普通消息 vs Thread消息）</li>
+                <li>排序算法不稳定</li>
+            </ul>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">🛠️ 修复方案</div>
+            <div class="code-block">
+                <strong>改进的排序逻辑：</strong><br>
+                const sortedMessages = [...session.messages].sort((a, b) => {<br>
+                &nbsp;&nbsp;const dateA = new Date(a.date).getTime();<br>
+                &nbsp;&nbsp;const dateB = new Date(b.date).getTime();<br>
+                &nbsp;&nbsp;<br>
+                &nbsp;&nbsp;// 如果时间差小于1秒，认为是同一时间，按ID排序<br>
+                &nbsp;&nbsp;if (Math.abs(dateA - dateB) < 1000) {<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;return a.id.localeCompare(b.id);<br>
+                &nbsp;&nbsp;}<br>
+                &nbsp;&nbsp;<br>
+                &nbsp;&nbsp;return dateA - dateB;<br>
+                });
+            </div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">📊 排序测试</div>
+            <div id="sortingTest"></div>
+        </div>
+        
+        <div class="debug-section">
+            <div class="debug-title">🔧 调试信息</div>
+            <div id="debugInfo"></div>
+        </div>
+    </div>
+
+    <script>
+        function debugMessageSorting() {
+            const testDiv = document.getElementById('sortingTest');
+            const debugDiv = document.getElementById('debugInfo');
+            
+            // 创建测试消息数据（模拟截图中的时间）
+            const messages = [
+                {
+                    id: 'msg_1',
+                    role: 'assistant',
+                    content: '关于这个问题，我会尽力回答您。',
+                    date: '7/20/2025, 7:58:42 PM'
+                },
+                {
+                    id: 'msg_2',
+                    role: 'user',
+                    content: '你是谁',
+                    date: '7/20/2025, 8:20:37 PM'
+                },
+                {
+                    id: 'msg_3',
+                    role: 'assistant',
+                    content: '投资建议，帮助您处理高风险高回报问题...',
+                    date: '7/20/2025, 8:20:40 PM'
+                },
+                {
+                    id: 'msg_4',
+                    role: 'user',
+                    content: 'html 如何生成文字但是自带超链接',
+                    date: '7/20/2025, 8:22:28 PM'
+                }
+            ];
+            
+            // 测试原始排序
+            const originalOrder = [...messages];
+            
+            // 测试简单时间排序
+            const simpleTimeSort = [...messages].sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return dateA - dateB;
+            });
+            
+            // 测试改进的排序（时间相同则按ID排序）
+            const improvedSort = [...messages].sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                
+                // 如果时间差小于1秒，认为是同一时间，按ID排序
+                if (Math.abs(dateA - dateB) < 1000) {
+                    return a.id.localeCompare(b.id);
+                }
+                
+                return dateA - dateB;
+            });
+            
+            // 显示原始顺序
+            testDiv.innerHTML = '<p><strong>原始顺序：</strong></p>';
+            originalOrder.forEach((message, index) => {
+                const avatar = message.role === 'user' ? '👤' : '🤖';
+                const timestamp = new Date(message.date).getTime();
+                testDiv.innerHTML += `
+                    <div class="message-item">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-role">${message.role === 'user' ? '用户' : 'AI助手'}</div>
+                            <div class="message-text">${message.content}</div>
+                            <div class="message-time">${message.date}</div>
+                            <div class="message-id">ID: ${message.id}</div>
+                            <div class="timestamp-debug">Timestamp: ${timestamp}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 显示简单时间排序
+            testDiv.innerHTML += '<p><strong>简单时间排序：</strong></p>';
+            simpleTimeSort.forEach((message, index) => {
+                const avatar = message.role === 'user' ? '👤' : '🤖';
+                const timestamp = new Date(message.date).getTime();
+                testDiv.innerHTML += `
+                    <div class="message-item">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-role">${message.role === 'user' ? '用户' : 'AI助手'}</div>
+                            <div class="message-text">${message.content}</div>
+                            <div class="message-time">${message.date}</div>
+                            <div class="message-id">ID: ${message.id}</div>
+                            <div class="timestamp-debug">Timestamp: ${timestamp}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 显示改进排序
+            testDiv.innerHTML += '<p><strong>改进排序（时间相同按ID排序）：</strong></p>';
+            improvedSort.forEach((message, index) => {
+                const avatar = message.role === 'user' ? '👤' : '🤖';
+                const timestamp = new Date(message.date).getTime();
+                testDiv.innerHTML += `
+                    <div class="message-item">
+                        <div class="message-avatar">${avatar}</div>
+                        <div class="message-content">
+                            <div class="message-role">${message.role === 'user' ? '用户' : 'AI助手'}</div>
+                            <div class="message-text">${message.content}</div>
+                            <div class="message-time">${message.date}</div>
+                            <div class="message-id">ID: ${message.id}</div>
+                            <div class="timestamp-debug">Timestamp: ${timestamp}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 分析时间差
+            debugDiv.innerHTML = '<p><strong>时间差分析：</strong></p>';
+            const timestamps = messages.map(m => new Date(m.date).getTime()).sort((a, b) => a - b);
+            for (let i = 1; i < timestamps.length; i++) {
+                const diff = timestamps[i] - timestamps[i-1];
+                debugDiv.innerHTML += `<p>时间差 ${i}: ${diff}ms (${diff/1000}秒)</p>`;
+            }
+            
+            // 检查是否有相同时间戳
+            const timeGroups = {};
+            messages.forEach(msg => {
+                const timestamp = new Date(msg.date).getTime();
+                if (!timeGroups[timestamp]) {
+                    timeGroups[timestamp] = [];
+                }
+                timeGroups[timestamp].push(msg);
+            });
+            
+            const duplicateTimes = Object.entries(timeGroups).filter(([time, msgs]) => msgs.length > 1);
+            if (duplicateTimes.length > 0) {
+                debugDiv.innerHTML += '<div class="test-result warning">⚠️ 发现相同时间戳的消息，这可能导致排序不稳定</div>';
+                duplicateTimes.forEach(([time, msgs]) => {
+                    debugDiv.innerHTML += `<p>时间 ${new Date(parseInt(time)).toLocaleString()}: ${msgs.length} 条消息</p>`;
+                });
+            } else {
+                debugDiv.innerHTML += '<div class="test-result success">✅ 没有发现相同时间戳的消息</div>';
+            }
+        }
+        
+        // 页面加载时运行测试
+        window.addEventListener('load', debugMessageSorting);
+    </script>
+</body>
+</html> 

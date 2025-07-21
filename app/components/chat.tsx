@@ -1336,21 +1336,35 @@ function _Chat() {
     return session.mask.hideContext ? [] : session.mask.context.slice();
   }, [session.mask.context, session.mask.hideContext]);
 
-  if (
-    context.length === 0 &&
-    session.messages.at(0)?.content !== BOT_HELLO.content
-  ) {
-    const copiedHello = Object.assign({}, BOT_HELLO);
-    if (!accessStore.isAuthorized()) {
-      copiedHello.content = Locale.Error.Unauthorized;
-    }
-    context.push(copiedHello);
-  }
+  // 注释掉自动添加欢迎消息的逻辑
+  // if (
+  //   context.length === 0 &&
+  //   session.messages.at(0)?.content !== BOT_HELLO.content
+  // ) {
+  //   const copiedHello = Object.assign({}, BOT_HELLO);
+  //   if (!accessStore.isAuthorized()) {
+  //     copiedHello.content = Locale.Error.Unauthorized;
+  //   }
+  //   context.push(copiedHello);
+  // }
 
   // preview messages
   const renderMessages = useMemo(() => {
+    // 按时间升序排序消息（最早的在前），如果时间相同则按ID排序
+    const sortedMessages = [...session.messages].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+
+      // 如果时间差小于1秒，认为是同一时间，按ID排序
+      if (Math.abs(dateA - dateB) < 1000) {
+        return a.id.localeCompare(b.id);
+      }
+
+      return dateA - dateB;
+    });
+
     return context
-      .concat(session.messages as RenderMessage[])
+      .concat(sortedMessages as RenderMessage[])
       .concat(
         isLoading
           ? [
