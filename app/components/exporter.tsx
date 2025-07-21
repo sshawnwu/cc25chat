@@ -524,9 +524,9 @@ export function ImagePreviewer(props: {
           </div>
 
           <div>
-            <div className={styles["main-title"]}>NextChat</div>
+            <div className={styles["main-title"]}>InvQ.AI</div>
             <div className={styles["sub-title"]}>
-              github.com/ChatGPTNextWeb/ChatGPT-Next-Web
+              InvestQuick, Made with Love by Shawn
             </div>
             <div className={styles["icons"]}>
               <MaskAvatar avatar={config.avatar} />

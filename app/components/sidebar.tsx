@@ -250,11 +250,12 @@ export function SideBar(props: { className?: string }) {
       {...props}
     >
       <SideBarHeader
-        title="NextChat"
-        subTitle="Build your own AI assistant."
+        title="InvQ.AI"
+        subTitle="InvestQuick, Made with Love by Shawn"
         logo={<ChatGptIcon />}
         shouldNarrow={shouldNarrow}
       >
+        {/* Hidden buttons for InvQ.AI customization
         <div className={styles["sidebar-header-bar"]}>
           <IconButton
             icon={<MaskIcon />}
@@ -288,6 +289,7 @@ export function SideBar(props: { className?: string }) {
             shadow
           />
         </div>
+        */}
         {showDiscoverySelector && (
           <Selector
             items={[
@@ -336,6 +338,7 @@ export function SideBar(props: { className?: string }) {
                 />
               </Link>
             </div>
+            {/* Hidden GitHub button for InvQ.AI customization
             <div className={styles["sidebar-action"]}>
               <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
                 <IconButton
@@ -345,9 +348,11 @@ export function SideBar(props: { className?: string }) {
                 />
               </a>
             </div>
+            */}
           </>
         }
         secondaryAction={
+          /* Hidden NewChat button for InvQ.AI customization
           <IconButton
             icon={<AddIcon />}
             text={shouldNarrow ? undefined : Locale.Home.NewChat}
@@ -361,6 +366,8 @@ export function SideBar(props: { className?: string }) {
             }}
             shadow
           />
+          */
+          null
         }
       />
     </SideBarContainer>

@@ -665,3 +665,35 @@ export function streamWithThink(
   console.debug("[ChatAPI] start");
   chatApi(chatPath, headers, requestPayload, tools); // call fetchEventSource
 }
+
+export function generateSessionName(
+  sessions: any[],
+  threadId?: string,
+): string {
+  // If it's a thread session, use timestamp format
+  if (threadId) {
+    const now = new Date();
+    const dateStr = `${now.getMonth() + 1}/${now.getDate()}/${now
+      .getFullYear()
+      .toString()
+      .slice(-2)}`;
+
+    // Find existing sessions with the same date (including those with letters)
+    const sameDateSessions = sessions.filter((session) => {
+      if (!session.topic) return false;
+      // Match both "7/20/25" and "7/20/25 A", "7/20/25 B", etc.
+      return session.topic.match(/^\d{1,2}\/\d{1,2}\/\d{2}(\s[A-Z])?$/);
+    });
+
+    // Count sessions with the same date
+    const sameDateCount = sameDateSessions.length;
+
+    // Generate suffix (A, B, C, etc.) - always start with A
+    const suffix = String.fromCharCode(65 + sameDateCount);
+
+    return `${dateStr} ${suffix}`;
+  }
+
+  // For non-thread sessions, use default topic
+  return "New Chat";
+}

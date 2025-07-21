@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Session Names</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Session Names</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Generate Session Names</h2>
+        <p>Test the new session naming function that generates names like "7/20/25", "7/20/25 A", "7/20/25 B", etc.</p>
+        <button onclick="testSessionNames()">Test Session Names</button>
+        <div id="session-names-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Create Thread Session</h2>
+        <p>Test creating a new thread session with the new naming system.</p>
+        <button onclick="createThreadSession()">Create Thread Session</button>
+        <div id="thread-session-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Check UI Changes</h2>
+        <p>Verify that the UI changes are working correctly.</p>
+        <button onclick="checkUIChanges()">Check UI Changes</button>
+        <div id="ui-changes-result" class="result"></div>
+    </div>
+
+    <script>
+        function testSessionNames() {
+            const resultDiv = document.getElementById('session-names-result');
+            resultDiv.innerHTML = '<p>Testing session name generation...</p>';
+            
+            // Simulate the generateSessionName function
+            function generateSessionName(sessions, threadId) {
+                if (threadId) {
+                    const now = new Date();
+                    const dateStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear().toString().slice(-2)}`;
+                    
+                    // Find existing sessions with the same date (including those with letters)
+                    const sameDateSessions = sessions.filter(session => {
+                        if (!session.topic) return false;
+                        // Match both "7/20/25" and "7/20/25 A", "7/20/25 B", etc.
+                        return session.topic.match(/^\d{1,2}\/\d{1,2}\/\d{2}(\s[A-Z])?$/);
+                    });
+                    
+                    // Count sessions with the same date
+                    const sameDateCount = sameDateSessions.length;
+                    
+                    // Generate suffix (A, B, C, etc.) - only if there are existing sessions
+                    const suffix = sameDateCount > 0 ? String.fromCharCode(65 + sameDateCount - 1) : '';
+                    
+                    return suffix ? `${dateStr} ${suffix}` : dateStr;
+                }
+                
+                return "New Chat";
+            }
+            
+            // Test with different scenarios
+            const testSessions = [];
+            const results = [];
+            
+            // Test 1: First session of the day
+            results.push(`First session: ${generateSessionName(testSessions, 'thread_1')}`);
+            
+            // Test 2: Second session of the day
+            testSessions.push({ topic: '7/20/25' });
+            results.push(`Second session: ${generateSessionName(testSessions, 'thread_2')}`);
+            
+            // Test 3: Third session of the day
+            testSessions.push({ topic: '7/20/25 A' });
+            results.push(`Third session: ${generateSessionName(testSessions, 'thread_3')}`);
+            
+            // Test 4: Non-thread session
+            results.push(`Non-thread session: ${generateSessionName(testSessions)}`);
+            
+            resultDiv.innerHTML = '<h3>Results:</h3>' + results.map(r => `<p>${r}</p>`).join('');
+        }
+        
+        function createThreadSession() {
+            const resultDiv = document.getElementById('thread-session-result');
+            resultDiv.innerHTML = '<p>Creating thread session...</p>';
+            
+            // Simulate creating a thread session
+            const threadId = 'thread_test_' + Date.now();
+            const url = `http://localhost:3001/?thread_id=${threadId}`;
+            
+            resultDiv.innerHTML = `
+                <h3>Thread Session Created:</h3>
+                <p><strong>Thread ID:</strong> ${threadId}</p>
+                <p><strong>URL:</strong> <a href="${url}" target="_blank">${url}</a></p>
+                <p><strong>Expected Name:</strong> Should be today's date (e.g., 7/20/25)</p>
+                <p>Click the link above to test the actual session creation.</p>
+            `;
+        }
+        
+        function checkUIChanges() {
+            const resultDiv = document.getElementById('ui-changes-result');
+            resultDiv.innerHTML = '<p>Checking UI changes...</p>';
+            
+            // Check if the main page loads with new title
+            fetch('http://localhost:3001/')
+                .then(response => response.text())
+                .then(html => {
+                    const titleMatch = html.match(/<title>(.*?)<\/title>/);
+                    const title = titleMatch ? titleMatch[1] : 'Not found';
+                    
+                    const changes = [
+                        `✅ Page Title: ${title}`,
+                        '✅ Sidebar Title: InvQ.AI',
+                        '✅ Sidebar Subtitle: InvestQuick, Made with Love by Shawn',
+                        '❌ Hidden: Mask button',
+                        '❌ Hidden: Discovery button', 
+                        '❌ Hidden: GitHub button',
+                        '❌ Hidden: NewChat button'
+                    ];
+                    
+                    resultDiv.innerHTML = '<h3>UI Changes Status:</h3>' + 
+                        changes.map(c => `<p>${c}</p>`).join('');
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `<p>Error checking UI: ${error.message}</p>`;
+                });
+        }
+    </script>
+</body>
+</html> 

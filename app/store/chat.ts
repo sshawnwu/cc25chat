@@ -410,7 +410,9 @@ export const useChatStore = createPersistStore(
 
           session.messages = chatMessages;
           if (!mask) {
-            session.topic = `Thread ${threadId}`;
+            // Import the generateSessionName function
+            const { generateSessionName } = await import("../utils/chat");
+            session.topic = generateSessionName(get().sessions, threadId);
           }
         } catch (error) {
           console.error(
@@ -418,7 +420,9 @@ export const useChatStore = createPersistStore(
             error,
           );
           if (!mask) {
-            session.topic = `Thread ${threadId} (Failed to load)`;
+            // Import the generateSessionName function
+            const { generateSessionName } = await import("../utils/chat");
+            session.topic = generateSessionName(get().sessions, threadId);
           }
         }
 

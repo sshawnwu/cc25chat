@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Naming Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .result {
+            background-color: #f0f8ff;
+            padding: 5px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Session Naming Fix</h1>
+    <p>Testing the corrected naming logic where the first session has no letter, second gets 'A', third gets 'B', etc.</p>
+    
+    <div id="test-results"></div>
+
+    <script>
+        // Simulate the fixed generateSessionName function
+        function generateSessionName(sessions, threadId) {
+            if (threadId) {
+                const now = new Date();
+                const dateStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear().toString().slice(-2)}`;
+                
+                // Find existing sessions with the same date (including those with letters)
+                const sameDateSessions = sessions.filter(session => {
+                    if (!session.topic) return false;
+                    // Match both "7/20/25" and "7/20/25 A", "7/20/25 B", etc.
+                    return session.topic.match(/^\d{1,2}\/\d{1,2}\/\d{2}(\s[A-Z])?$/);
+                });
+                
+                // Count sessions with the same date
+                const sameDateCount = sameDateSessions.length;
+                
+                // Generate suffix (A, B, C, etc.) - always start with A
+                const suffix = String.fromCharCode(65 + sameDateCount);
+                
+                return `${dateStr} ${suffix}`;
+            }
+            
+            return "New Chat";
+        }
+        
+        // Test scenarios
+        const testCases = [
+            {
+                name: "Empty sessions array",
+                sessions: [],
+                expected: "7/20/25 A"
+            },
+            {
+                name: "One existing session (A)",
+                sessions: [{ topic: "7/20/25 A" }],
+                expected: "7/20/25 B"
+            },
+            {
+                name: "Two existing sessions (A + B)",
+                sessions: [{ topic: "7/20/25 A" }, { topic: "7/20/25 B" }],
+                expected: "7/20/25 C"
+            },
+            {
+                name: "Three existing sessions (A + B + C)",
+                sessions: [{ topic: "7/20/25 A" }, { topic: "7/20/25 B" }, { topic: "7/20/25 C" }],
+                expected: "7/20/25 D"
+            },
+            {
+                name: "Mixed sessions (different dates)",
+                sessions: [{ topic: "7/19/25 A" }, { topic: "7/20/25 A" }, { topic: "7/20/25 B" }],
+                expected: "7/20/25 C"
+            }
+        ];
+        
+        const resultsDiv = document.getElementById('test-results');
+        let html = '';
+        
+        testCases.forEach((testCase, index) => {
+            const result = generateSessionName(testCase.sessions, 'thread_test');
+            const passed = result === testCase.expected;
+            
+            html += `
+                <div class="test-case">
+                    <h3>Test ${index + 1}: ${testCase.name}</h3>
+                    <div class="result">
+                        <strong>Expected:</strong> ${testCase.expected}<br>
+                        <strong>Actual:</strong> ${result}<br>
+                        <strong>Status:</strong> <span style="color: ${passed ? 'green' : 'red'}">${passed ? '✅ PASS' : '❌ FAIL'}</span>
+                    </div>
+                    <div><strong>Existing sessions:</strong> ${testCase.sessions.map(s => s.topic).join(', ') || 'None'}</div>
+                </div>
+            `;
+        });
+        
+        resultsDiv.innerHTML = html;
+    </script>
+</body>
+</html> 

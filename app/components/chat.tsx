@@ -650,6 +650,7 @@ export function ChatActions(props: {
           icon={<PromptIcon />}
         />
 
+        {/* Hidden Masks button for InvQ.AI customization
         <ChatAction
           onClick={() => {
             navigate(Path.Masks);
@@ -657,6 +658,7 @@ export function ChatActions(props: {
           text={Locale.Chat.InputActions.Masks}
           icon={<MaskIcon />}
         />
+        */}
 
         <ChatAction
           text={Locale.Chat.InputActions.Clear}
@@ -994,8 +996,6 @@ function _Chat() {
   const config = useAppConfig();
   const fontSize = config.fontSize;
   const fontFamily = config.fontFamily;
-
-
 
   const [showExport, setShowExport] = useState(false);
 
