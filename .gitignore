@@ -45,7 +45,16 @@ dev
 *.key
 *.key.pub
 
+# vim swap files
+*.swp
+*.swo
+*~
+
 masks.json
 
 # mcp config
 app/mcp/mcp_config.json
+
+# local environment files
+.env.local
+.env.local.*
